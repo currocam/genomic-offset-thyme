@@ -1,0 +1,6 @@
+configfile: "workflow/config.yaml"
+include: "rules/allele_frequencies.smk"
+
+
+rule all:
+    input: f"steps/plink_to_vcf/{config['GENOTYPE_BASE_FILE']}.vcf"

@@ -1,0 +1,6 @@
+name: plink
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - bioconda::plink=1.90b6.12
