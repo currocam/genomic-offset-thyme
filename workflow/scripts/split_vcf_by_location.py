@@ -11,6 +11,4 @@ for site in df.site_id.unique():
     # Get samples for this site
     samples = df[df.site_id == site].sample_id.tolist()
     # Filter vcf
-    shell(
-        f"bcftools view -s {','.join(samples)} {vcf} > {outfile}/{site}.vcf"
-    )
+    shell(f"bcftools view -s {','.join(samples)} {vcf} > {outfile}/{site}.vcf")

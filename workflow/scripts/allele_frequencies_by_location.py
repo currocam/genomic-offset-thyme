@@ -13,9 +13,13 @@ df = None
 for file, site in zip(vcfs, sites):
     if df is None:
         ids = [rec.id for rec in VariantFile(f"{indir}/{file}") if rec.id]
-        maf = [rec.info["AC"][0]/rec.info["AN"] for rec in VariantFile(f"{indir}/{file}")]
+        maf = [
+            rec.info["AC"][0] / rec.info["AN"] for rec in VariantFile(f"{indir}/{file}")
+        ]
         df = pd.DataFrame({"id": ids, site: maf})
     else:
         assert df.id.tolist() == [rec.id for rec in VariantFile(f"{indir}/{file}")]
-        df[site] = [rec.info["AC"][0]/rec.info["AN"] for rec in VariantFile(f"{indir}/{file}")]
+        df[site] = [
+            rec.info["AC"][0] / rec.info["AN"] for rec in VariantFile(f"{indir}/{file}")
+        ]
 df.to_csv(outfile, sep="\t", index=False)
