@@ -3,4 +3,4 @@ include: "rules/allele_frequencies.smk"
 
 
 rule all:
-    input: f"steps/renamed_vcf/{config['GENOTYPE_BASE_FILE']}_renamed.vcf"
+    input: f"results/allele_freqs/{config['GENOTYPE_BASE_FILE']}.csv"

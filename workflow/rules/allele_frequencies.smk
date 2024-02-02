@@ -28,3 +28,22 @@ rule rename_vcf:
         """
         awk '{{print $1}}' {input.metadata} | tail -n +2 > steps/renamed_vcf/samples_list.txt & bcftools reheader --samples steps/renamed_vcf/samples_list.txt {input.vcf} -o {output}
         """
+
+rule split_vcf_by_location:
+    input:
+        vcf = f"steps/renamed_vcf/{config['GENOTYPE_BASE_FILE']}_renamed.vcf",
+        metadata = config['METADATA_FILE']
+    output:
+        temp(directory(f"steps/vcf_split_location/{config['GENOTYPE_BASE_FILE']}"))
+    conda:
+        "../envs/bcftools.yaml"
+    script: "../scripts/split_vcf_by_location.py"     
+
+rule allele_freq:
+    input:
+        f"steps/vcf_split_location/{config['GENOTYPE_BASE_FILE']}",
+    output:
+        f"results/allele_freqs/{config['GENOTYPE_BASE_FILE']}.csv"
+    conda:
+        "../envs/pysam.yaml"
+    script: "../scripts/allele_frequencies_by_location.py"        
