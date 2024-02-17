@@ -1,0 +1,7 @@
+name: slim
+channels:
+  - bioconda
+  - conda-forge
+  - defaults
+dependencies:
+  - slim==4.1

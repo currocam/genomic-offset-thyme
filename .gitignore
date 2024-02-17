@@ -1,2 +1,4 @@
 steps/
 .snakemake/
+logs/
+sandbox/

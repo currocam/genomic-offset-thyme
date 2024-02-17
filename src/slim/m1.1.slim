@@ -1,0 +1,110 @@
+initialize() {
+	initializeMutationRate(1e-7);
+	// neutral mutations in non-coding regions
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeGenomicElementType("g1", m1, 1.0);
+	// mutations representing alleles in QTLs
+	initializeMutationType("m2", 0.5, "n", 1, 2);
+	initializeGenomicElementType("g2", m2, 1.0);
+	// After fixation, mutation still matters
+	m2.convertToSubstitution = F;
+	// replace previous mutation
+	m2.mutationStackPolicy = "l";
+	
+	// set up our chromosome: 100 QTLs, surrounded by neutral regions
+	defineConstant("C", 100);
+	// number of QTLs
+	defineConstant("W", 500); // size of neutral buffer on each side
+	pos = 0;
+	q = NULL;
+	for (i in 1:C)
+	{
+		initializeGenomicElement(g1, pos, pos + W-1);
+		pos = pos + W;
+		initializeGenomicElement(g2, pos, pos);
+		q = c(q, pos);
+		pos = pos + 1;
+		initializeGenomicElement(g1, pos, pos + W-1);
+		pos = pos + W;
+	}
+	defineConstant("Q", q); // Our QTL positions
+	// we want the QTLs to be unlinked; build a recombination map for that	
+	rates = c(rep(c(1e-8, 0.5), C-1), 1e-8);
+	ends = (repEach(Q + W, 2) + rep(c(0,1), C))[0:(C*2 - 2)];
+	//initializeRecombinationRate(1e-8);
+	initializeRecombinationRate(rates, ends);
+}
+1 early() {
+	defineConstant("metapopSide", 5);
+	// number of subpops along one side of the grid
+	metapopSize = metapopSide * metapopSide;
+	for (i in 1:metapopSize)
+		sim.addSubpop(i, 100);
+	subpops = sim.subpopulations;
+	for (x in 1:metapopSide)
+		for (y in 1:metapopSide)
+		{
+			destID = (x - 1) + (y - 1) * metapopSide + 1;
+			destSubpop = subpops[destID - 1];
+			if (x > 1)
+				// left to right
+				destSubpop.setMigrationRates(destID - 1, 0.05);
+			if (x < metapopSide)
+				// right to left
+				destSubpop.setMigrationRates(destID + 1, 0.05);
+			if (y > 1)
+				// top to bottom
+				destSubpop.setMigrationRates(destID - metapopSide, 0.05);
+			if (y < metapopSide)
+				// bottom to top
+				destSubpop.setMigrationRates(destID + metapopSide, 0.05);
+		}
+}
+1 late()
+{
+	// optional: give m2 mutations to everyone, as standing variation
+	g = sim.subpopulations.genomes;
+	for (q in Q)
+	{
+		isPlus = asLogical(rbinom(size(g), 1, 0.4));
+		g[isPlus].addNewMutation(m2, 0.1, q);
+	}
+}
+// Overwritte m2, so we can handle it ourselfs
+mutationEffect(m2) { return 1.0; }
+1: late() {
+	// evaluate and save the additive effects of QTLs
+	for (x in 1:metapopSide)
+	{
+		optimum = 5/metapopSide*x;
+		for (y in 1:metapopSide)
+		{
+			inds = sim.subpopulations[(x - 1) + (y - 1) * metapopSide].individuals;
+			phenotype = inds.sumOfMutationsOfType(m2);
+			inds.fitnessScaling = 1.0 + dnorm(optimum - phenotype, 0.0, 1.0);
+			inds.tagF = phenotype;
+		}
+	}
+}
+50000 late() {
+	inds = sim.subpopulations.sampleIndividuals(10);
+	if (!exists("slimgui")) {
+		writeFile(outfile, "#QTL");
+		writeFile(outfile, paste0("#", paste(Q+1)), append=T);
+		writeFile(outfile, "#Populations", append=T);
+		writeFile(outfile, paste0("#", paste(inds.subpopulation.id)), append=T);
+		writeFile(outfile, "#Trait", append=T);
+		writeFile(outfile, paste0("#", paste(inds.tagF)), append=T);
+		writeFile(outfile, "x,y,optimum", append=T);
+		for (x in 1:metapopSide)
+		{
+			optimum = 10/metapopSide*x;
+			for (y in 1:metapopSide)
+			{
+				writeFile(outfile, paste0(x, ",", y, ",", optimum), append=T);
+			}
+		}
+		inds.genomes.outputVCF(filePath=outvcf);
+	}
+	catn("Simulation finished!");
+}
