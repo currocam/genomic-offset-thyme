@@ -1,11 +1,9 @@
 configfile: "workflow/config.yaml"
 include: "rules/allele_frequencies.smk"
 include: "rules/slim.smk"
+include: "rules/misidentified_snps.smk"
 
 rule all:
     input: 
         f"results/allele_freqs/{config['GENOTYPE_BASE_FILE']}.csv",
-
-rule temp_slim:
-    input:
-        expand("steps/slim/m1.1_s{seed}.vcf", seed = range(500, 530))
+        "steps/misidentified_snps/.done"       
