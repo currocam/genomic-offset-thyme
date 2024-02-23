@@ -21,3 +21,8 @@ rule misidentified_snps:
         runtime=100
     shell:
         "julia {input.script}"
+
+rule gain_temp:
+    input:
+        expand("steps/slim/m2.1_s{seed}.vcf", seed=range(500, 551)),
+        expand("steps/slim/m2.2_s{seed}.vcf", seed=range(500, 551))
