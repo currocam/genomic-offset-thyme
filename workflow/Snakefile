@@ -4,6 +4,7 @@ configfile: "workflow/config.yaml"
 include: "rules/allele_frequencies.smk"
 include: "rules/slim.smk"
 include: "rules/misidentified_snps.smk"
+include: "rules/quality_control.smk"
 
 
 rule all:
