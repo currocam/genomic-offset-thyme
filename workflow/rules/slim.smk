@@ -50,7 +50,7 @@ rule parse_slim2:
         mem_mb=800,
         runtime=5,
     params:
-        script="workflow/scripts/parse_slim.jl"
+        script="workflow/scripts/parse_slim.jl",
     shell:
         """
         julia  --project=. {params.script} {input} {output}
