@@ -118,21 +118,7 @@ parse_simulation <- function(non_local_file, local_file) {
 # Custom function that computes the offset
 # Same interface as the rest from Gain et al. 
 # Number of latent factors are computed using tracy.widom test
-go_genetic_gap <- function(Y, X, X.pred, snps.set){
-  Y <- Y[, snps.set]
-  compute_k <- function(Y, threshold = 0.05) {
-    infile <- tempfile(fileext = ".geno")
-    pca.res <- pca(write.geno(Y, output.file = infile))
-    m1 <- tracy.widom(pca.res)
-    dirname(infile) |>
-      list.files(sub('\\.geno$', '', basename(infile)), full.names = TRUE) |>
-      unlink(recursive = TRUE)
-    project <- sub('\\.geno$', '', basename(infile))
-    remove.pcaProject(paste0(project, ".pcaProject"))
-    sum(m1$pvalues < threshold)
-  }
-  genetic.gap(input = Y, env = X, pred.env = X.pred, K=compute_k(Y))$offset  
-}
+source("src/R/go_offset.R")
 
 # Create a nicely formatted table for a given dataset and a offset function
 handle_simulation_pair <- function(data, offset_function){
