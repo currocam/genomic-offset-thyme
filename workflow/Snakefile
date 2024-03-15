@@ -5,6 +5,7 @@ include: "rules/allele_frequencies.smk"
 include: "rules/slim.smk"
 include: "rules/misidentified_snps.smk"
 include: "rules/quality_control.smk"
+include: "rules/linkage_disequilibrium.smk"
 
 
 rule all:

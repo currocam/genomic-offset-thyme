@@ -55,3 +55,21 @@ rule parse_slim2:
         """
         julia  --project=. {params.script} {input} {output}
         """
+
+rule vcf2plink:
+    input:
+        "steps/slim/{sample}.vcf",
+    output:
+        temp(multiext("steps/slim/{sample}", ".bed", ".bim", ".fam")),
+    resources:
+        mem_mb=300,
+        plink_memory=150,
+        runtime=5,
+    conda:
+        "../envs/plink.yaml"        
+    log:
+        "logs/plink/{sample}_vct2plink.log"
+    shell:
+        """
+        plink --memory {resources.plink_memory} --vcf {input} --out steps/slim/{wildcards.sample} > {log}
+        """

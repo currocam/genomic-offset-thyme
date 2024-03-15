@@ -16,3 +16,12 @@ rule quality_control:
         runtime=10,
     shell:
         "Rscript --vanilla {input.script} > {log}"
+
+rule check_ld_quality_control:
+    input:
+        files=expand(
+            "steps/pairwise_ld/{model}_s{seed}_nQTL1s{n}_nQTL2s_{n}.ld",
+            seed=range(100, 110),
+            n=[20, 50, 100],
+            model=["m3.2"],
+        ),
