@@ -15,3 +15,5 @@ This simulations are adapted from m2.1.slim. The idea is to contrast GO when com
 
 1. "m3.1.slim" No local adaptation.
 2. "m3.2.slim" Local adaptation.
+3. "m3.3.slim" Local adaptation, with asymmetric variance fitness. 
+3. "m3.4.slim" Local adaptation, with asymmetric variance fitness (stronger)

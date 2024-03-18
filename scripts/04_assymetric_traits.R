@@ -1,0 +1,80 @@
+library(tidyverse)
+library(LEA)
+library(conflicted)
+source("src/R/go_offset.R")
+
+handle_simulation <- function(file){
+  data <- read_rds(file)
+  Y <- data$Genotype
+  # Add 100 random snps at the end
+  freqs <- runif(100, 0, 1)
+  Yrand <- replicate(nrow(Y), rbinom(n = 100, size = 2, prob = freqs))
+  Y <- cbind(Y, Yrand)
+  # Prepare env data
+  X <- matrix(c(
+    data[["Current env 1"]], data[["Current env 2"]],
+    rnorm(100), rnorm(100)
+  ),ncol=4)
+  X.pred <-  matrix(c(
+    data[["Future env 1"]], data[["Future env 2"]],
+    rnorm(100), rnorm(100)
+  ),ncol=4)
+  # Causal offset
+  causal_loci <- c(data[["Index QTLs 1"]], data[["Index QTLs 2"]])
+  causal <- go_genetic_gap(Y, X, X.pred, causal_loci)
+  # All SNPs
+  empirical <- go_genetic_gap(Y, X, X.pred, 1:ncol(Y))
+  # Incomplete QTLs
+  incomplete_loci <- c(
+    sample(data[["Index QTLs 1"]], 5), sample(data[["Index QTLs 2"]], 5),
+    # random snps
+    seq(ncol(Y)-94, ncol(Y))
+  )
+  incomplete <- go_genetic_gap(Y, X, X.pred, incomplete_loci)
+  # Missing one qtl
+  missing_qtl1 <- c(
+    sample(data[["Index QTLs 1"]], 5),
+    # random snps
+    seq(ncol(Y)-99, ncol(Y))
+  )
+  missing_one <- go_genetic_gap(Y, X, X.pred, missing_qtl1)
+  missing_qtl2 <- c(
+    sample(data[["Index QTLs 2"]], 5),
+    # random snps
+    seq(ncol(Y)-99, ncol(Y))
+  )
+  missing_two <- go_genetic_gap(Y, X, X.pred, missing_qtl2)
+  # Only random
+  random_snps <- seq(ncol(Y)-99, ncol(Y))
+  random <- go_genetic_gap(Y, X, X.pred, random_snps)
+  tibble(
+    current_fitness = data[["Current fitness"]],
+    future_fitness = data[["Future fitness"]],
+    causal_offset = causal,
+    empirical_offset = empirical,
+    incomplete_offset = incomplete,
+    missing_QTL1_offset = missing_one,
+    missing_QTL2_offset = missing_two,
+    random_offset = random,
+  )
+}
+
+run <- function() {
+  outfile <- "results/local_adaptation_scenarios/m3_offsets_asymmetric.csv"
+  infiles <- c(
+    list.files("steps/slim/", "m3.3.+.Rds", full.names = TRUE),
+    list.files("steps/slim/", "m3.4.+.Rds", full.names = TRUE)
+  )
+  names(infiles) <- basename(infiles) |> str_remove(".Rds")
+  res <- map(infiles, handle_simulation) |>
+    bind_rows(.id = "File") |>
+    separate_wider_delim(File, "_", names = c("model", "seed", NA, NA, "QTLs")) |>
+    mutate(QTLs = as.numeric(QTLs))
+    
+  if (!dir.exists(dirname(outfile))){
+  dir.create(dirname(outfile))
+  }
+  write_csv(res, outfile)
+}
+
+run()
