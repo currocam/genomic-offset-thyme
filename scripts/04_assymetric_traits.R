@@ -32,18 +32,18 @@ handle_simulation <- function(file){
   )
   incomplete <- go_genetic_gap(Y, X, X.pred, incomplete_loci)
   # Missing one qtl
-  missing_qtl1 <- c(
+  only_qtl1 <- c(
     sample(data[["Index QTLs 1"]], 5),
     # random snps
     seq(ncol(Y)-99, ncol(Y))
   )
-  missing_one <- go_genetic_gap(Y, X, X.pred, missing_qtl1)
-  missing_qtl2 <- c(
+  only_one <- go_genetic_gap(Y, X, X.pred, only_qtl1)
+  only_qtl2 <- c(
     sample(data[["Index QTLs 2"]], 5),
     # random snps
     seq(ncol(Y)-99, ncol(Y))
   )
-  missing_two <- go_genetic_gap(Y, X, X.pred, missing_qtl2)
+  only_two <- go_genetic_gap(Y, X, X.pred, only_qtl2)
   # Only random
   random_snps <- seq(ncol(Y)-99, ncol(Y))
   random <- go_genetic_gap(Y, X, X.pred, random_snps)
@@ -53,8 +53,8 @@ handle_simulation <- function(file){
     causal_offset = causal,
     empirical_offset = empirical,
     incomplete_offset = incomplete,
-    missing_QTL1_offset = missing_one,
-    missing_QTL2_offset = missing_two,
+    only_QTL1_offset = only_one,
+    only_QTL2_offset = only_two,
     random_offset = random,
   )
 }
