@@ -14,3 +14,17 @@ rule go_preprocess:
     script:
         "../scripts/prepro_thyme.jl"
 
+rule ee_ERA5:
+    input:
+        metadata = "data/genos01_02_2024/thymus_2016_sample_info_clean233samples.tsv",
+        script = "scripts/05_earth_engine_ERA5.py"
+    output:
+        "results/ecological/ERA5_233samples.csv",
+    log:
+        "logs/ecological/ERA5_233samples.log",
+    resources:
+        mem_mb=1000,
+        runtime=5,
+    shell:
+        "python {input.script} > {log} 2> {log}"
+
