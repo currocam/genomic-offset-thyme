@@ -26,6 +26,25 @@ rule check_ld_quality_control:
             model=["m3.2"],
         )
 
+rule env_counfounded_quality_control:
+    input:
+        files=expand(
+            "steps/slim/{model}_s{seed}_nQTL1s{n}.Rds",
+            seed=range(100, 110),
+            n=[20, 50, 100],
+            model=["m4.1"],
+        ),
+        script="scripts/06_counfounded_env.R"
+    output:
+        "results/local_adaptation_scenarios/m4_offsets_counfounded.csv", 
+    log:
+        "logs/local_adaptation_scenarios/m4_offsets_counfounded.log",
+    resources:
+        mem_mb=3000,
+        runtime=10,
+    shell:
+        "Rscript --vanilla {input.script} > {log} 2> {log}"
+
 rule asymmetric_fitness_variance:
     input: 
         files = expand(
