@@ -13,7 +13,7 @@ ee.Initialize()
 
 # Read metadata
 metadata = pd.read_csv(
-    "data/genos01_02_2024/thymus_2016_sample_info_clean233samples.tsv", sep="\t"
+    "data/genos27_03_2024/thymus_2016_sample_info_clean231samples_hetremove.tsv", sep="\t"
 )
 # Select only site_id  lon_deci  lat_deci
 meta_sites = metadata[
@@ -57,4 +57,4 @@ res = pd.concat(
 )
 res.epoch = res.time.astype(int)
 res.time = res.time.apply(lambda epoch: datetime.fromtimestamp(epoch/1000).strftime('%Y-%m-%d'))
-res.to_csv('results/ecological/ERA5_233samples.csv', index=False)
+res.to_csv('results/ecological/ERA5_231samples.csv', index=False)
