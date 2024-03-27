@@ -1,5 +1,3 @@
-go_genetic_gap <- function(Y, X, X.pred, snps.set){
-  Y <- Y[, snps.set]
   compute_k <- function(Y, threshold = 0.05) {
     infile <- tempfile(fileext = ".geno")
     pca.res <- pca(write.geno(Y, output.file = infile))
@@ -11,5 +9,8 @@ go_genetic_gap <- function(Y, X, X.pred, snps.set){
     remove.pcaProject(paste0(project, ".pcaProject"))
     sum(m1$pvalues < threshold)
   }
+
+go_genetic_gap <- function(Y, X, X.pred, snps.set){
+  Y <- Y[, snps.set]
   genetic.gap(input = Y, env = X, pred.env = X.pred, K=compute_k(Y))$offset  
 }
