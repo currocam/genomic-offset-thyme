@@ -21,7 +21,7 @@ handle_simulation <- function(file){
   ),ncol=4)
   # Causal offset
   causal_loci <- c(data[["Index QTLs 1"]], data[["Index QTLs 2"]])
-  causal <- go_genetic_gap(Y, X, X.pred, causal_loci)
+  causal <- go_genetic_gap(Y, X[,1:2], X.pred[,1:2], causal_loci)
   # All SNPs
   empirical <- go_genetic_gap(Y, X, X.pred, 1:ncol(Y))
   # Incomplete QTLs
