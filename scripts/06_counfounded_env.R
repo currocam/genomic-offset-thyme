@@ -18,11 +18,11 @@ handle_simulation <- function(file){
   ),ncol=3)
   # Causal offset
   causal_loci <- c(data[["Index QTLs 1"]])
-  causal <- go_genetic_gap(Y, X[,1:2], X.pred[,1:2], causal_loci)
+  causal <- go_genetic_gap(Y, X[,1], X.pred[,1], causal_loci)
   causal_one_random <- go_genetic_gap(Y, X[,c(1, 3)], X.pred[,c(1, 3)], causal_loci)
   causal_one_counfounded <- go_genetic_gap(Y, X[,c(1, 2)], X.pred[,c(1, 2)], causal_loci)
   # All SNPs
-  empirical <- go_genetic_gap(Y, X[,1:2], X.pred[,1:2], 1:ncol(Y))
+  empirical <- go_genetic_gap(Y, X[,1], X.pred[,1], 1:ncol(Y))
   empirical_one_random <- go_genetic_gap(Y, X[,c(1, 3)], X.pred[,c(1, 3)], 1:ncol(Y))
   empirical_one_counfounded <- go_genetic_gap(Y, X[,c(1, 2)], X.pred[,c(1, 2)], 1:ncol(Y))
   tibble(
