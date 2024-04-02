@@ -1,7 +1,10 @@
 library(tidyverse)
 library(LEA)
+library(gradientForest)
 library(conflicted)
 source("src/R/gain_offset.R")
+
+l2norm <- \(u, v) sqrt(sum((u-v)^2))
 
 # Parses non local and local adapted simulations
 parse_simulation <- function(non_local_file, local_file) {
@@ -135,14 +138,15 @@ handle_simulation_pair <- function(data, offset_function){
 offset_fns <- list(
   "Geometric GO" = go_genetic_gap,
   "RONA" = go_rona,
-  "RDA GO" = go_rda
+  "RDA GO" = go_rda,
+  "GF GO" = \(Y, X, X_pred, causal_set) go_gf(Y, X, X_pred, causal_set)$go
 )
 
 run <- function() {
   outfile <- "results/local_adaptation_scenarios/m3_offsets.csv"
   non_local_files <- list.files("steps/slim/", "m3.1.+.Rds", full.names = TRUE)
   local_files <- list.files("steps/slim/", "m3.2.+.Rds", full.names = TRUE)
-  res <- map2(non_local_files, local_files, \(non_local_files, local_files) {
+  res <- map2(non_local_files, local_files, .progress = TRUE, \(non_local_files, local_files) {
     data_sim <- parse_simulation(non_local_files, local_files)
     map(offset_fns, \(f) handle_simulation_pair(data_sim, f)) |> bind_rows(.id = "Method")
   })

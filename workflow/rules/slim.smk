@@ -5,7 +5,7 @@ rule vcf_slim:
         "steps/slim/{model}_s{seed}.vcf",
         "steps/slim/{model}_s{seed}.txt",
     wildcard_constraints:
-        seed="\d+",
+        seed=r"\d+",
     resources:
         mem_mb=300,
         runtime=100,
@@ -28,7 +28,8 @@ rule slim1:
         mem_mb=300,
         runtime=100,
     wildcard_constraints:
-        seed="\d+",
+        seed=r"\d+",
+        nQTL1s=r"\d+",
     conda:
         "../envs/slim.yaml"
     log:
@@ -49,7 +50,9 @@ rule slim2:
         mem_mb=300,
         runtime=100,
     wildcard_constraints:
-        seed="\d+",
+        seed=r"\d+",
+        nQTL1s=r"\d+",
+        nQTL2s=r"\d+",
     conda:
         "../envs/slim.yaml"
     log:
@@ -68,6 +71,9 @@ rule parse_slim1:
     resources:
         mem_mb=800,
         runtime=5,
+    wildcard_constraints:
+        seed=r"\d+",
+        nQTL1s=r"\d+",
     params:
         script="workflow/scripts/parse_slim.jl",
     shell:
@@ -84,6 +90,9 @@ rule parse_slim2:
     resources:
         mem_mb=800,
         runtime=5,
+    wildcard_constraints:
+        seed=r"\d+",
+        nQTL1s=r"\d+",
     params:
         script="workflow/scripts/parse_slim.jl",
     shell:

@@ -12,10 +12,10 @@ rule quality_control:
     log:
         "logs/local_adaptation_scenarios/m3_offsets.log",
     resources:
-        mem_mb=3000,
-        runtime=10,
+        mem_mb=16000,
+        runtime=300,
     shell:
-        "Rscript --vanilla {input.script} > {log}"
+        "Rscript --vanilla {input.script} > {log} 2> {log}"
 
 rule check_ld_quality_control:
     input:
@@ -41,7 +41,7 @@ rule env_counfounded_quality_control:
         "logs/local_adaptation_scenarios/m4_offsets_counfounded.log",
     resources:
         mem_mb=3000,
-        runtime=10,
+        runtime=100,
     shell:
         "Rscript --vanilla {input.script} > {log} 2> {log}"
 
