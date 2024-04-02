@@ -11,7 +11,7 @@ rule go_preprocess:
         "logs/genomic_offset/genos27_03_2024_prepro.log",
     resources:
         mem_mb=3000,
-        runtime=10,
+        runtime=30,
     script:
         "../scripts/prepro_thyme.jl"
 

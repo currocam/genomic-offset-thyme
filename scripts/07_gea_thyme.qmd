@@ -1,0 +1,442 @@
+---
+title: "GEA-Thyme"
+author: "Curro"
+date: today
+format:
+  html:
+    embed-resources: true
+---
+
+The goal of this notebook is to perform three types of genotype-environment association (GEA). We will use Redundancy analysis and LFMM2.
+
+```{r}
+#| label: "setup"
+library(tidyverse)
+library(LEA)
+library(vegan)
+library(qvalue)
+library(conflicted)
+library(qqman)
+library(robust)
+library(knitr)
+conflicts_prefer(dplyr::filter)
+source("../src/R/go_offset.R")
+```
+
+# Data
+
+We used thyme data from the 2016's campaign. Genotypes were pruned and annotated (linked to their contig in the transcriptome) by Genis. Env data was sent by Thomas.
+
+Overall view:
+
+```{r}
+#| label: "data"
+data <- read_rds("../steps/genomic_offset/genos27_03_2024_prepro.Rds")
+```
+
+## Genotype data
+
+We created the genotype matrix $\mathbf Y$ with all loci:
+
+```{r}
+#| label: "genotype"
+Y <- data$unprunned
+str(Y)
+```
+
+Annotated SNPs:
+
+```{r}
+#| label: "annotation"
+annotation <- as.data.frame(data$gene_ann)
+rownames(annotation) <- annotation$Id
+annotation <- annotation[colnames(Y),]
+str(annotation)
+```
+
+## Environmental data
+
+We created the environmental matrix $\mathbf X$ by (a) imputing missing values and (b) computing PCs. First, I tried using pPCA to do both steps, but the imputed values were unrealistic after un-rescaling (not sure why).
+
+```{r}
+#| label: "env"
+imputation <- \(vec) {
+  vec[is.na(vec)] <- median(vec, na.rm = TRUE)
+  vec
+}
+env_ind <- data$environment |>
+  select(-starts_with("PC")) |>
+  mutate(across(everything(), imputation))
+glimpse(env_ind)
+```
+
+We did a PCA:
+
+```{r}
+#| label: "env_pca"
+env_pca <- rda(env_ind, scale=T)
+summary(env_pca)$cont
+```
+
+```{r}
+#| label: "fig-screeplot1"
+#| fig-cap: "Screeplot: Eigenvalues of Thyme Env Variables"
+screeplot(env_pca, main = "")
+```
+
+As Thomas did before, we will use the first two PCs as predictor. As we can see, PC1 is a proxy of the effect of heat & drought, and PC2 is a proxy of freezing events.
+
+```{r}
+#| label: "fig-biplot1"
+#| fig-cap: "Biplot of Thyme Env Variables"
+
+biplot(env_pca, display = "species")
+```
+
+```{r}
+#| label: "xmat"
+X <- scores(env_pca, choices=1:2, display="sites", scaling=0)
+rownames(X) <- data$metadata$sample_id
+str(X)
+```
+
+## Data preprocessing
+
+We aggregated results per site.
+
+```{r}
+#| label: "agg_site"
+frequencies <- as.data.frame(Y) |>
+  mutate(site_id = data$metadata$site_id) |>
+  group_by(site_id) |>
+  summarise(across(everything(), \(x) mean(x) / 2 )) |>
+  column_to_rownames("site_id")
+  
+env_sites <- as.data.frame(X) |>
+  mutate(site_id = data$metadata$site_id) |>
+  group_by(site_id) |>
+  summarise(across(everything(), \(vec) vec[[1]])
+  ) |>
+  column_to_rownames("site_id")
+
+meta_sites <- data$metadata |>
+  group_by(site_id) |>
+  summarise(across(everything(), \(vec) vec[[1]])
+  ) |>
+  column_to_rownames("site_id")
+
+stopifnot(all(rownames(frequencies) == rownames(env_sites)))
+stopifnot(all(rownames(meta_sites) == rownames(env_sites)))
+
+```
+
+# Analysis
+
+We did three analysis:
+
+-   A univariate GEA analysis at the individual level based on LFMM
+
+-   A multivariate GEA analysis at the individual level based on RDA
+
+-   A multivariate GEA analysis at the site level based on RDA
+
+## Latent Factor Mixed Models (LFMM)
+
+The LFMM fits a model such that $\mathbf Y = \mathbf X \mathbf B^\top + \mathbf W$, where $\mathbf W$ is a latent matrix of rank $K$. We have to decide $K$.
+
+### Choose $K$
+
+We chose to use three methods and stick with the most conservative (aka higher) value.
+
+```{r}
+#| label: "tracy-widom-test"
+#| message: false
+Y |> round() |> compute_k()
+```
+
+```{r}
+#| label: "fig-pca_geno"
+#| fig-cap: "Choosing K"
+#| fig-subcap: 
+#| - "Broken stick"
+#| - "Elbow rule"
+genotypes_pca <- rda(Y, scale=T)
+screeplot(genotypes_pca, main = "", bstick=TRUE, type="barplot")
+screeplot(genotypes_pca, main = "") 
+```
+
+1.  Elbow rule: 0
+2.  Elbow rule of thumb: 3 ?
+3.  Tracy widom test: 28 (winner)
+
+### Fitting LFMM model
+
+We fitted the model using the Ridge solutions (default $\lambda$ value).
+
+```{r}
+#| label: "lfmm_model"
+lfmm_mod <- lfmm2(Y, X, K = 28)
+```
+
+### Uni-variate test
+
+The trick is that, after fitting the multivariate model, we store the latent matrix and "forget" about the effect sizes. Then, we refit the regression (maintaing the intercept) and test if the coefficient $\beta$ is different from zero. Therefore, we do one test per locus and environmental variable. It is not clear to me how to "conservative" we should be.
+
+```{r}
+#| label: "univariate"
+lfmm_test <- lfmm2.test(lfmm_mod, Y, X, genomic.control = FALSE, linear = TRUE)
+```
+
+```{r}
+#| label: "fig-pvalues"
+#| fig-cap: "Histogram of p-values using LFMM"
+#| message: false
+tibble(
+  PC1 = lfmm_test$pvalues[1, ],
+  PC2 = lfmm_test$pvalues[2, ]
+) |>
+  pivot_longer(everything()) |>
+  ggplot(aes(x = value, fill = name))+
+  geom_histogram(colour = "black")+
+  facet_wrap(~name) +
+  xlab("P-values")+
+  theme(legend.position = "none")+
+  theme_classic()
+```
+
+We kept all significant SNPs with FDR \< 1%.
+
+```{r}
+#| label: "fig-manhattan_lfmm"
+#| fig-cap: "Manhattan plot of the SNPs GEA. Highlted loci are the ones for which FDR < 1%. "
+lfmm_qvalues <- qvalue(lfmm_test$pvalues)
+lfmm_candidates <- colnames(Y)[which(lfmm_qvalues$qvalues < 0.01, arr.ind = TRUE)[,2]]
+annotation |>
+  mutate(
+    qvalue_lfmm_pc1 = lfmm_qvalues$qvalues[1,],
+    qvalue_lfmm_pc2 = lfmm_qvalues$qvalues[2,],
+    pvalue_lfmm_pc1 = lfmm_qvalues$pvalues[1,],
+    pvalue_lfmm_pc2 = lfmm_qvalues$pvalues[2,],
+    chrom = as.factor(Chromosome) |> as.numeric()
+  ) |>
+  rowwise() |>
+  mutate(
+    pvalue = min(pvalue_lfmm_pc1, pvalue_lfmm_pc2),
+    qvalue = min(qvalue_lfmm_pc1, qvalue_lfmm_pc2)
+  ) |>
+  manhattan(
+    chr="chrom", bp="Position", snp="Id", p="pvalue",
+    genomewideline = FALSE, suggestiveline = FALSE,
+    highlight = lfmm_candidates
+    )
+```
+
+We blasted the contigs and got these results (we kept one SNP per contig)
+
+```{r}
+#| label: "blast_lfmm"
+annotation[lfmm_candidates,] |>
+  distinct(Gene, .keep_all = TRUE) |>
+  pull(Gene)
+
+
+annotation[lfmm_candidates,] |>
+  cbind(as.data.frame(which(lfmm_qvalues$qvalues < 0.01, arr.ind = TRUE))) |>
+    distinct(Gene, .keep_all = TRUE)
+
+```
+
+| Contig        | Blast                                                                   | 1st google hit                                                                                                                                                                           |
+|------------------|-----------------------------------|-------------------|
+| AT:Contig660  | DEAD-box ATP-dependent RNA helicase 20-like                             | [Plant signalling (ABA) and abiotic stress](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3489646/#:~:text=doi%3A-,10.4161/psb.21343,-PMCID%3A%20PMC3489646)                              |
+| AT:Contig805  | Salvia miltiorrhiza scarecrow-like protein 1                            | [D](google.es)[rought stress tolerance](https://www.semanticscholar.org/paper/Scarecrow-like-protein-1%2C-(Ct-SCL1)-involved-in-by-Taub.-Reddy/fd5a1300d88fbd327e203b1cd81fdcaafe4a2c45) |
+| AT:Contig2146 | Salvia splendens EIN3-binding F-box protein 1-like                      | [Ethylene signaling](https://pubmed.ncbi.nlm.nih.gov/17307926/)                                                                                                                          |
+| AT:Contig3190 | Salvia miltiorrhiza 5'-3' exoribonuclease3-like                         | [Signalling path](https://www.jbc.org/article/S0021-9258(20)80113-6/fulltext)                                                                                                            |
+| AT:Contig5264 | Salvia miltiorrhiza probable protein phosphatase 2C 15                  | [ABA signalling](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5379993/)                                                                                                                  |
+| AT:Contig6086 | Salvia miltiorrhiza diaminopimelate decarboxylase 1, chloroplastic-like |                                                                                                                                                                                          |
+| FC:KM272331.1 | Thymus vulgaris limonene-6-hydroxylase mRNA                             | Monoterpenoid biosynthesis                                                                                                                                                               |
+| FC:JX946357.1 | Thymus vulgaris terpene synthase 6 mRNA                                 | Monoterpenoid biosynthesis                                                                                                                                                               |
+
+: Blast results
+
+Now, we visualized how the allele frequencies (per site) vary through the two gradients (PCs).
+
+```{r}
+#| label: "fig-lfmm"
+#| message: false
+#| fig-cap: "Visualization top GEA (LFMM)"
+#| fig-subcap: 
+#| - ""
+#| - ""
+#| - ""
+#| - ""
+#| - ""
+#| - ""
+#| - ""
+#| - ""
+#| - ""
+
+plot <- \(loci, ylab, xlab, col) {
+  env_sites |>
+    mutate(candidate_freq = frequencies[,loci]) |>
+    ggplot(aes(x = env_sites[,col], y = candidate_freq))+
+    geom_point() +
+    geom_smooth(method = 'lm')+
+    theme_classic() +
+    ylab(ylab)+
+    xlab(xlab) +
+    ylim(c(0, 1))
+}
+
+plot("LG04_RagTag:4029689:T:C", "AT:Contig660", "PC1 (heat)", "PC1")
+plot("LG03_RagTag:2313652:G:A", "AT:Contig805", "PC1 (heat)", "PC1")
+plot("LG13_RagTag:231850:C:T", "AT:Contig2146", "PC1 (heat)", "PC1")  
+plot("LG13_RagTag:50192125:A:G", "AT:Contig3190", "PC2 (freezing)", "PC2") 
+plot("LG08_RagTag:57191962:A:G", "AT:Contig5264", "PC2 (freezing)", "PC2")  
+plot("LG03_RagTag:54630710:A:T", "AT:Contig6086", "PC1 (heat)", "PC1")  
+plot("LG06_RagTag:44498665:C:T", "FC:KM272331.1,FC:KM272332.1", "PC1 (heat)", "PC1")  
+plot("LG03_RagTag:2535797:A:G", "FC:JX946357.1,FC:JX946358.1,FC:KC461937.1", "PC1 (heat)", "PC1")  
+
+
+
+
+```
+
+## RDA GEA
+
+### Correct by population structure
+
+We used the 1st and 2nd PC of the prunned genotypes to correct for population structure.
+
+```{r}
+#| label: "fig-popstr"
+#| fig-cap: "PCA made with the genotypes of prunned loci"
+prunned_pca <- rda(data$prunned, scale=T)
+prunned_pca_scores <- scores(prunned_pca, choices=1:2, display="sites") |>
+  as.data.frame()
+prunned_pca_scores |>
+  bind_cols(data$metadata) |>
+  ggplot(aes(x = PC1, y = PC2, colour = site_id))+
+  geom_point()+
+  theme_classic()
+```
+
+And the geographic location:
+
+```{r}
+#| label: "fig-geo"
+#| fig-cap: "Geographical location of the sites. "
+parse_geo <- function(deg, deci){
+  # Assume all positives, N & E (not always valid)
+  as.numeric(str_sub(deg, 2)) + deci / 60
+}
+data_ind_rda <- as.data.frame(X) |>
+  rename(PC1_env = PC1, PC2_env = PC2) |>
+  bind_cols(prunned_pca_scores) |>
+  rename(PC1_popstr = PC1, PC2_popstr = PC2) |>
+  bind_cols(data$metadata) |>
+  mutate(lat = parse_geo(lat_deg, lat_deci), lon = parse_geo(lon_deg, lon_deci))
+
+data_ind_rda |>
+  ggplot(aes(x = lat, y = lon, colour = site_id))+
+  geom_point()+
+  theme_classic()
+```
+
+### Fitting the RDA model
+
+```{r}
+#| label: rda
+ind_rda <- rda(Y ~ PC1_env + PC2_env + Condition(PC1_popstr + PC2_popstr + lat + lon), data=data_ind_rda, scale=T)
+ind_rda
+```
+
+As expected, the adjusted $r^2$ is very low (we only expect a few loci to be explained by the environment.
+
+```{r}
+#| label: "r2"
+RsquareAdj(ind_rda)
+```
+
+Now, we can identify loci under local adaptation by identifying veyr high loadings. We tested as done by Thibaut Capblancq & Brenna Forester (2021). Redundancy Analysis: A Swiss army knife for landscape genomics. Methods in Ecology and Evolution.
+
+```{r}
+#| label: "rda-method"
+# From Capblancq and Forester
+# Function to conduct a RDA based genome scan
+rdadapt <- function(rda,K){
+  zscores<-rda$CCA$v[,1:as.numeric(K)]
+  resscale <- apply(zscores, 2, scale)
+  resmaha <- covRob(resscale, distance = TRUE, na.action= na.omit, estim="pairwiseGK")$dist
+  lambda <- median(resmaha)/qchisq(0.5,df=K)
+  reschi2test <- pchisq(resmaha/lambda,K,lower.tail=FALSE)
+  qval <- qvalue(reschi2test)
+  q.values_rdadapt<-qval$qvalues
+  tibble(p.values=reschi2test, q.values=q.values_rdadapt)
+}
+```
+
+Now, we can (a) visualize the SNPs and identify them
+
+```{r}
+#| label: "fig-rda"
+#| fig-cap: "RDA at the individual level results"
+rda_test <- rdadapt(ind_rda, 2)
+
+dat_rda_plot <- scores(ind_rda, choices=c(1:2), display="species", scaling="none") |>
+  bind_cols(annotation) |>
+  mutate(pvalue = rda_test$p.values, qvalue = rda_test$q.values)
+dat_rda_plot$type <- "FDR > 1%"
+dat_rda_plot$type <- if_else(dat_rda_plot$qvalue < 0.40, "FDR < 40%", dat_rda_plot$type)
+dat_rda_plot$type <- if_else(dat_rda_plot$qvalue < 0.01, "FDR < 1%", dat_rda_plot$type)
+
+rda_biplot <- scores(ind_rda, choices=c(1,2), display="bp")
+
+ggplot(dat_rda_plot) +
+  geom_hline(yintercept=0, linetype="dashed", color = gray(.80), size=0.6) +
+  geom_vline(xintercept=0, linetype="dashed", color = gray(.80), size=0.6) +
+  geom_point(aes(x=RDA1*30, y=RDA2*30, colour = type), size = 1.4)+
+  scale_colour_manual(values = c("#F9A242FF", "#6B4596FF", "gray90"))+
+  geom_segment(
+    data = scores(ind_rda, choices=c(1,2), display="bp"),
+    aes(xend=RDA1, yend=RDA2, x=0, y=0),
+    colour="black", size=0.15, linetype=1, arrow=arrow(length = unit(0.02, "npc"))
+    )+
+  geom_text(data = rda_biplot, aes(x=1.1*RDA1, y=1.1*RDA2, label = c("PC1 (heat)", "PC2 (freezing)")), size = 2.5)+
+  xlab("RDA 1") + ylab("RDA 2") +
+  guides(color=guide_legend(title="Locus type")) +
+  theme_classic()
+
+
+```
+
+We got fewer results, as this method is more conservative.
+
+```{r}
+cor(rda_test$p.values, apply(lfmm_qvalues$pvalues, 2, min))
+```
+
+```{r}
+cor(rda_test$q.values, apply(lfmm_qvalues$qvalues, 2, min))
+```
+
+All hits are from a set of loci in the AT:Contig660 contig (best hit before, also).
+
+```{r}
+all(annotation[which(dat_rda_plot$qvalue < 0.01),]$Gene == "AT:Contig660")
+```
+
+## RDA GEA (site level)
+
+Finally, we also made a GEA at the site level. However, it didn't have any predictive power).
+
+```{r}
+sites_rda <- rda(frequencies ~ PC1 + PC2, data=env_sites, scale=T)
+RsquareAdj(sites_rda)
+```
+
+### Session info
+
+```{r}
+sessioninfo::session_info()
+```
