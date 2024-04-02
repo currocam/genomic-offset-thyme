@@ -19,17 +19,17 @@ handle_simulation <- function(file){
   # Causal offset
   causal_loci <- c(data[["Index QTLs 1"]])
   causal <- go_genetic_gap(Y, X[,1], X.pred[,1], causal_loci)
-  causal_one_counfounded <- go_genetic_gap(Y, X[,c(1, 2)], X.pred[,c(1, 2)], causal_loci)
+  causal_one_confounded <- go_genetic_gap(Y, X[,c(1, 2)], X.pred[,c(1, 2)], causal_loci)
   # All SNPs
   empirical <- go_genetic_gap(Y, X[,1], X.pred[,1], 1:ncol(Y))
-  empirical_one_counfounded <- go_genetic_gap(Y, X[,c(1, 2)], X.pred[,c(1, 2)], 1:ncol(Y))
+  empirical_one_confounded <- go_genetic_gap(Y, X[,c(1, 2)], X.pred[,c(1, 2)], 1:ncol(Y))
   res <- tibble(
     current_fitness = data[["Current fitness"]],
     future_fitness = data[["Future fitness"]],
     causal_offset = causal,
-    causal_counfounded_offset = causal_one_counfounded,
+    causal_confounded_offset = causal_one_confounded,
     empirical_offset = empirical,
-    empirical_counfounded_offset = empirical_one_counfounded,
+    empirical_confounded_offset = empirical_one_confounded,
   )
   walk(seq(1, 70, by = 5), \(index) {
     res[paste0("causal_random_", index, "_offset")] <<- go_genetic_gap(Y, X[,c(1, 3:(2+index))], X.pred[,c(1, 3:(2+index))], causal_loci)
@@ -39,7 +39,7 @@ handle_simulation <- function(file){
 }
 
 run <- function() {
-  outfile <- "results/local_adaptation_scenarios/m4_offsets_counfounded.csv"
+  outfile <- "results/local_adaptation_scenarios/m4_offsets_confounded.csv"
   infiles <- c(list.files("steps/slim/", "m4.1.+.Rds", full.names = TRUE))
   names(infiles) <- basename(infiles) |> str_remove(".Rds")
   res <- map(infiles, handle_simulation) |>

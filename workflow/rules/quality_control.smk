@@ -26,7 +26,7 @@ rule check_ld_quality_control:
             model=["m3.2"],
         )
 
-rule env_counfounded_quality_control:
+rule env_confounded_quality_control:
     input:
         files=expand(
             "steps/slim/{model}_s{seed}_nQTL1s{n}.Rds",
@@ -34,11 +34,11 @@ rule env_counfounded_quality_control:
             n=[20, 50, 100],
             model=["m4.1"],
         ),
-        script="scripts/06_counfounded_env.R"
+        script="scripts/06_confounded_env.R"
     output:
-        "results/local_adaptation_scenarios/m4_offsets_counfounded.csv", 
+        "results/local_adaptation_scenarios/m4_offsets_confounded.csv", 
     log:
-        "logs/local_adaptation_scenarios/m4_offsets_counfounded.log",
+        "logs/local_adaptation_scenarios/m4_offsets_confounded.log",
     resources:
         mem_mb=3000,
         runtime=100,
