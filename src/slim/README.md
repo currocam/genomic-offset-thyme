@@ -17,4 +17,4 @@ This simulations are adapted from m2.1.slim. The idea is to contrast GO when com
 2. "m3.2.slim" Local adaptation.
 3. "m3.3.slim" Local adaptation, with asymmetric variance fitness. 
 3. "m3.4.slim" Local adaptation, with asymmetric variance fitness (stronger)
-4. "m4.1.slim" Local adaptation, one ecological gradient is now counfounded with population structure (but doesn't affect the fitness)
+4. "m4.1.slim" Local adaptation, one ecological gradient is now confounded with population structure (but doesn't affect the fitness)

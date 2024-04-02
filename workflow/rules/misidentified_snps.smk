@@ -7,7 +7,7 @@ rule misidentified_snps:
             "steps/misidentified_snps/{basename}.csv",
             basename=[
                 "only_causal_snps_one_causal_pred",
-                "only_causal_snps_causal_counfounded_pred",
+                "only_causal_snps_causal_confounded_pred",
                 "all_snps_one_causal_pred",
                 "all_snps_two_predictors_confounded",
                 "all_snps_two_predictors_uncorrelated",

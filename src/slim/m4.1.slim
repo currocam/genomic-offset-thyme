@@ -57,7 +57,7 @@ mutationEffect(m2){return 1.0;}
 		mapVar1 = rbind(mapVar1, line);
 	}
 	
-	//Define counfounded env predictor 
+	//Define confounded env predictor 
 	mapVar2 = c();
 	
 	for (i in seq(1,12))
@@ -83,11 +83,11 @@ mutationEffect(m2){return 1.0;}
 	defineConstant("var1final", mapVar1Final);
 	p1.defineSpatialMap("map2", "xy", var1final, interpolate=F);
 	
-	// map3 contains the *current* counfounded env predictor
+	// map3 contains the *current* confounded env predictor
 	defineConstant("var2", mapVar2);
 	p1.defineSpatialMap("map3", "xy", var2, interpolate=F);
 	
-	// map4 contains the *future* counfounded env predictor
+	// map4 contains the *future* confounded env predictor
 	mapVar2Final = mapVar2 + runif(144, -0.6, 0.6);
 	Var2Variation = mapVar2Final - mapVar2;
 	defineConstant("var2final", mapVar2Final);

@@ -118,8 +118,8 @@ end
 
 # ╔═╡ 77253601-82c8-4fd3-a3a7-e516c3906f99
 md"""
-## Only causal SNPs, one causal predictor, one counfounded
-Now, let's do the same again, but including an counfounded covariate:
+## Only causal SNPs, one causal predictor, one confounded
+Now, let's do the same again, but including an confounded covariate:
 """
 
 # ╔═╡ 9169d228-4959-4aa5-816f-c9efcdc39bec
@@ -142,7 +142,7 @@ end
 let
   println("Running...")
   data = causal_snps_two_predictors_confounded(basenames)
-  CSV.write("$outdir/only_causal_snps_causal_counfounded_pred.csv", data)
+  CSV.write("$outdir/only_causal_snps_causal_confounded_pred.csv", data)
 end
 
 # ╔═╡ e44c8e18-fc3b-451a-9a20-b4d24e12cae9
@@ -176,7 +176,7 @@ end
 
 # ╔═╡ 779e5475-0869-40ff-b6b5-dfe84a1ef0e6
 md"""
-## All SNPs, one causal predictor, one counfounded
+## All SNPs, one causal predictor, one confounded
 """
 
 # ╔═╡ 0a780eeb-fbfc-451d-babc-a3a3ef33b847
