@@ -6,6 +6,12 @@ source("src/R/gain_offset.R")
 
 l2norm <- \(u, v) sqrt(sum((u-v)^2))
 
+lfmm_test_genotypes <- function(Y, X) {
+    test <- lfmm2(Y, X, compute_k(Y)) |> lfmm2.test(Y, X, genomic.control = TRUE, full = TRUE)
+    snps.set <- which(test$pvalues < 0.05 / ncol(Y))
+    Y[, snps.set]
+}
+
 # Parses non local and local adapted simulations
 parse_simulation <- function(non_local_file, local_file) {
   non_localadapt <- read_rds(non_local_file)
@@ -35,7 +41,6 @@ parse_simulation <- function(non_local_file, local_file) {
     rowwise() |>
     mutate(
       shifted_fitness = list(simulation[["Future fitness"]]),
-      Y = list(simulation$Genotype),
       X = list(matrix(c(
         simulation[["Current env 1"]], simulation[["Current env 2"]],
         rnorm(100), rnorm(100)
@@ -44,6 +49,7 @@ parse_simulation <- function(non_local_file, local_file) {
         simulation[["Future env 1"]], simulation[["Future env 2"]],
         rnorm(100), rnorm(100)
       ),ncol=4)),
+      Y = list(lfmm_test_genotypes(simulation$Genotype, X))
     )
 
   incomplete_data  <- tibble(
