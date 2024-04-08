@@ -3,6 +3,16 @@ library(LEA)
 library(conflicted)
 source("src/R/go_offset.R")
 
+go_genetic_gap_test <- function(Y, X, X.pred){
+  test <- lfmm2(Y, X, compute_k(Y)) |> lfmm2.test(Y, X, genomic.control = TRUE, full = TRUE)
+  snps.set <- which(test$pvalues < 0.05 / ncol(Y))
+  if (length(snps.set) < 1) {
+    return(rep(0, nrow(Y)))
+    
+  }
+  go_genetic_gap(Y, X, X.pred, snps.set)
+}
+
 handle_simulation <- function(file){
   data <- read_rds(file)
   Y <- data$Genotype
@@ -24,6 +34,7 @@ handle_simulation <- function(file){
   causal <- go_genetic_gap(Y, X[,1:2], X.pred[,1:2], causal_loci)
   # All SNPs
   empirical <- go_genetic_gap(Y, X, X.pred, 1:ncol(Y))
+  filtered <- go_genetic_gap_test(Y, X, X.pred)
   # Incomplete QTLs
   incomplete_loci <- c(
     sample(data[["Index QTLs 1"]], 5), sample(data[["Index QTLs 2"]], 5),
@@ -47,15 +58,18 @@ handle_simulation <- function(file){
   # Only random
   random_snps <- seq(ncol(Y)-99, ncol(Y))
   random <- go_genetic_gap(Y, X, X.pred, random_snps)
+  random_putative <- go_genetic_gap_test(Y[,random_snps], X, X.pred)
   tibble(
     current_fitness = data[["Current fitness"]],
     future_fitness = data[["Future fitness"]],
     causal_offset = causal,
     empirical_offset = empirical,
+    empirical_putative = filtered,
     incomplete_offset = incomplete,
     only_QTL1_offset = only_one,
     only_QTL2_offset = only_two,
     random_offset = random,
+    random_putative = random_putative
   )
 }
 
@@ -70,9 +84,9 @@ run <- function() {
     bind_rows(.id = "File") |>
     separate_wider_delim(File, "_", names = c("model", "seed", NA, NA, "QTLs")) |>
     mutate(QTLs = as.numeric(QTLs))
-    
+  
   if (!dir.exists(dirname(outfile))){
-  dir.create(dirname(outfile))
+    dir.create(dirname(outfile))
   }
   write_csv(res, outfile)
 }
