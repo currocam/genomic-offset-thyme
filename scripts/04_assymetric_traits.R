@@ -61,7 +61,7 @@ handle_simulation <- function(file){
   random <- go_genetic_gap(Y, X, X.pred, random_snps)
   fn <- possibly(go_genetic_gap_test, NULL)
   random_putative <- fn(Y[,random_snps], X, X.pred)
-  env_dist <- sqrt(sum((X-X.pred)^2))
+  env_dist <- sqrt(rowSums((X-X.pred)^2))
   tibble(
     current_fitness = data[["Current fitness"]],
     future_fitness = data[["Future fitness"]],
