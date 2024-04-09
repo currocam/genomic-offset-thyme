@@ -14,3 +14,13 @@ go_genetic_gap <- function(Y, X, X.pred, snps.set){
   Y <- Y[, snps.set]
   genetic.gap(input = Y, env = X, pred.env = X.pred, K=compute_k(Y))$offset  
 }
+
+go_genetic_gap_test <- function(Y, X, X.pred){
+  test <- lfmm2(Y, X, compute_k(Y)) |> lfmm2.test(Y, X, genomic.control = TRUE, full = TRUE)
+  snps.set <- which(test$pvalues < 0.05 / ncol(Y))
+  if (length(snps.set) < 1) {
+    return(rep(0, nrow(Y)))
+    
+  }
+  go_genetic_gap(Y, X, X.pred, snps.set)
+}

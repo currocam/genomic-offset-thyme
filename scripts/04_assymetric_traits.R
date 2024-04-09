@@ -3,17 +3,6 @@ library(LEA)
 library(conflicted)
 source("src/R/go_offset.R")
 
-go_genetic_gap_test <- function(Y, X, X.pred){
-  test <- lfmm2(Y, X, compute_k(Y)) |> lfmm2.test(Y, X, genomic.control = TRUE, full = TRUE)
-  snps.set <- which(test$pvalues < 0.05 / ncol(Y))
-  if (length(snps.set) < 1) {
-    return(rep(0, nrow(Y)))
-    
-  }
-  go_genetic_gap(Y, X, X.pred, snps.set)
-}
-
-
 handle_simulation <- function(file){
   data <- read_rds(file)
   Y <- data$Genotype
