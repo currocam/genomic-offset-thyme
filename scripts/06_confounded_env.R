@@ -2,7 +2,8 @@ library(tidyverse)
 library(LEA)
 library(conflicted)
 source("src/R/go_offset.R")
-source("src/R/go_offset.R")
+
+go_genetic_gap_test_possibly <- possibly(go_genetic_gap_test, NULL)
 
 handle_simulation <- function(file){
   data <- read_rds(file)
@@ -19,10 +20,10 @@ handle_simulation <- function(file){
   # Causal offset
   causal_loci <- c(data[["Index QTLs 1"]])
   causal <- go_genetic_gap(Y, X[,1], X.pred[,1], causal_loci)
-  causal_one_confounded <- go_genetic_gap(Y, X[,c(1, 2)], X.pred[,c(1, 2)], causal_loci)
+  causal_one_confounded <- go_genetic_gap_test_possibly(Y, X[,c(1, 2)], X.pred[,c(1, 2)])
   # All SNPs
-  empirical <- go_genetic_gap(Y, X[,1], X.pred[,1], 1:ncol(Y))
-  empirical_one_confounded <- go_genetic_gap(Y, X[,c(1, 2)], X.pred[,c(1, 2)], 1:ncol(Y))
+  empirical <- go_genetic_gap_test_possibly(Y, X[,1], X.pred[,1])
+  empirical_one_confounded <- go_genetic_gap_test_possibly(Y, X[,c(1, 2)], X.pred[,c(1, 2)])
   res <- tibble(
     current_fitness = data[["Current fitness"]],
     future_fitness = data[["Future fitness"]],
@@ -33,12 +34,13 @@ handle_simulation <- function(file){
   )
   walk(seq(1, 70, by = 5), \(index) {
     res[paste0("causal_random_", index, "_offset")] <<- go_genetic_gap(Y, X[,c(1, 3:(2+index))], X.pred[,c(1, 3:(2+index))], causal_loci)
-    res[paste0("causal_random_", index, "_offset")] <<- go_genetic_gap(Y, X[,c(1, 3:(2+index))], X.pred[,c(1, 3:(2+index))], 1:ncol(Y))
+    res[paste0("causal_random_", index, "_offset")] <<- go_genetic_gap_test_possibly(Y, X[,c(1, 3:(2+index))], X.pred[,c(1, 3:(2+index))])
   })
   res
 }
 
 run <- function() {
+  set.seed(1000)
   outfile <- "results/local_adaptation_scenarios/m4_offsets_confounded.csv"
   infiles <- c(list.files("steps/slim/", "m4.1.+.Rds", full.names = TRUE))
   names(infiles) <- basename(infiles) |> str_remove(".Rds")
