@@ -13,6 +13,7 @@ go_genetic_gap_test <- function(Y, X, X.pred){
   go_genetic_gap(Y, X, X.pred, snps.set)
 }
 
+
 handle_simulation <- function(file){
   data <- read_rds(file)
   Y <- data$Genotype
@@ -58,7 +59,9 @@ handle_simulation <- function(file){
   # Only random
   random_snps <- seq(ncol(Y)-99, ncol(Y))
   random <- go_genetic_gap(Y, X, X.pred, random_snps)
-  random_putative <- go_genetic_gap_test(Y[,random_snps], X, X.pred)
+  fn <- possibly(go_genetic_gap_test, NULL)
+  random_putative <- fn(Y[,random_snps], X, X.pred)
+  env_dist <- sqrt(sum((X-X.pred)^2))
   tibble(
     current_fitness = data[["Current fitness"]],
     future_fitness = data[["Future fitness"]],
@@ -69,7 +72,8 @@ handle_simulation <- function(file){
     only_QTL1_offset = only_one,
     only_QTL2_offset = only_two,
     random_offset = random,
-    random_putative = random_putative
+    random_putative = random_putative,
+    env_dist = env_dist
   )
 }
 
@@ -80,6 +84,7 @@ run <- function() {
     list.files("steps/slim/", "m3.4.+.Rds", full.names = TRUE)
   )
   names(infiles) <- basename(infiles) |> str_remove(".Rds")
+  set.seed(1000)
   res <- map(infiles, handle_simulation) |>
     bind_rows(.id = "File") |>
     separate_wider_delim(File, "_", names = c("model", "seed", NA, NA, "QTLs")) |>
