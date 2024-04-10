@@ -28,9 +28,15 @@ rule check_ld_quality_control:
 
 rule env_confounded_quality_control:
     input:
-        files=expand(
-            "steps/slim/{model}_s{seed}_nQTL1s{n}.Rds",
+        files1=expand(
+            "steps/slim/m4.1_s{seed}_nQTL1s{n}.Rds",
             seed=range(100, 110),
+            n=[20, 50, 100],
+            model=["m4.1", "m4.2"],
+        ),
+        files2=expand(
+            "steps/slim/m4.2_s{seed}_nQTL1s{n}.Rds",
+            seed=range(100, 140),
             n=[20, 50, 100],
             model=["m4.1", "m4.2"],
         ),
