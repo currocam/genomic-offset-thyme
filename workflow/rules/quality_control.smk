@@ -32,7 +32,7 @@ rule env_confounded_quality_control:
             "steps/slim/{model}_s{seed}_nQTL1s{n}.Rds",
             seed=range(100, 110),
             n=[20, 50, 100],
-            model=["m4.1"],
+            model=["m4.1", "m4.2"],
         ),
         script="scripts/06_confounded_env.R"
     output:
