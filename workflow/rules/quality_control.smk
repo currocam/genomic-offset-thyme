@@ -70,6 +70,11 @@ rule env_confounded_env:
             seed=range(100, 150),
             n=[100],
             model=["m4.2"],
+        ) + expand(
+            "steps/slim/{model}_s{seed}_nQTL1s{n}_nQTL2s_{n}.Rds",
+            seed=range(100, 115),
+            n=[100],
+            model=["m4.3"],
         ),
         script="scripts/07_confounded_env.R"
     output:

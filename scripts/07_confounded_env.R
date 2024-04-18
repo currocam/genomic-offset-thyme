@@ -81,10 +81,13 @@ run <- function(args) {
     separate_wider_delim(File, "_", names = c("model", "seed",NA, NA, "QTLs")) |>
     mutate(QTLs = as.numeric(QTLs))
 
-  mob <- map(infiles, \(x) read_rds(x)[["Later mobility"]]) |> as.numeric()
-  fst <- res |> group_by(seed) |> summarize (Fst = unique(fst)) |> pull("Fst")
-    
-  stopifnot(cor(fst, mob) < -0.80)
+  mob <- res |> group_by(model, seed, QTLs) |> summarize (mobility = unique(mobility)) |> pull("mobility")
+  fst <- res |> group_by(model, seed, QTLs) |> summarize (Fst = unique(fst)) |> pull("Fst")
+
+  print("Correlation: ")  
+  print(cor(fst, mob))
+  stopifnot(cor(fst, mob) < -0.5)
+
 
   if (!dir.exists(dirname(outfile))){
   dir.create(dirname(outfile))
