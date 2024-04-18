@@ -2,8 +2,8 @@ rule vcf_slim:
     input:
         "src/slim/{model}.slim",
     output:
-        "steps/slim/{model}_s{seed}.vcf",
-        "steps/slim/{model}_s{seed}.txt",
+        temp("steps/slim/{model}_s{seed}.vcf"),
+        temp("steps/slim/{model}_s{seed}.txt"),
     wildcard_constraints:
         seed=r"\d+",
     resources:
@@ -22,8 +22,8 @@ rule slim1:
     input:
         "src/slim/{model}.slim",
     output:
-        "steps/slim/{model}_s{seed}_nQTL1s{nQTL1s}.vcf",
-        "steps/slim/{model}_s{seed}_nQTL1s{nQTL1s}.txt",
+        temp("steps/slim/{model}_s{seed}_nQTL1s{nQTL1s}.vcf"),
+        temp("steps/slim/{model}_s{seed}_nQTL1s{nQTL1s}.txt"),
     resources:
         mem_mb=300,
         runtime=100,
@@ -44,8 +44,8 @@ rule slim2:
     input:
         "src/slim/{model}.slim",
     output:
-        "steps/slim/{model}_s{seed}_nQTL1s{nQTL1s}_nQTL2s_{nQTL2s}.vcf",
-        "steps/slim/{model}_s{seed}_nQTL1s{nQTL1s}_nQTL2s_{nQTL2s}.txt",
+        temp("steps/slim/{model}_s{seed}_nQTL1s{nQTL1s}_nQTL2s_{nQTL2s}.vcf"),
+        temp("steps/slim/{model}_s{seed}_nQTL1s{nQTL1s}_nQTL2s_{nQTL2s}.txt"),
     resources:
         mem_mb=300,
         runtime=100,
