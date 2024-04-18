@@ -67,20 +67,20 @@ rule env_confounded_env:
     input:
         files=expand(
             "steps/slim/{model}_s{seed}_nQTL1s{n}_nQTL2s_{n}.Rds",
-            seed=range(100, 130),
+            seed=range(100, 150),
             n=[100],
             model=["m4.2"],
         ),
         script="scripts/07_confounded_env.R"
     output:
-        "results/local_adaptation_scenarios/m4_offsets_confounded.csv", 
+        "results/local_adaptation_scenarios/m4_offsets_confounded.csv.gz", 
     log:
         "logs/local_adaptation_scenarios/m4_offsets_confounded.log",
     resources:
         mem_mb=3000,
         runtime=100,
     shell:
-        "Rscript --vanilla {input.script} > {log} 2> {log}"
+        "Rscript --vanilla {input.script} {input.files} {output} > {log} 2> {log}"
 
 rule asymmetric_fitness_variance:
     input: 

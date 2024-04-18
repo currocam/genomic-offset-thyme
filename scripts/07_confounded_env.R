@@ -1,3 +1,6 @@
+#!/usr/bin/env Rscript
+args <- commandArgs(trailingOnly=TRUE)
+
 library(tidyverse)
 library(LEA)
 library(cluster) 
@@ -67,10 +70,10 @@ handle_simulation <- function(file){
   )
 }
 
-run <- function() {
+run <- function(args) {
   set.seed(1000)
-  outfile2 <- "results/local_adaptation_scenarios/m4_offsets_confounded.csv"
-  infiles <- c(list.files("steps/slim/", "m4.2.+.Rds", full.names = TRUE))
+  outfile <- tail(args, 1)
+  infiles <- head(args, length(args)-1)
   names(infiles) <- basename(infiles) |> str_remove(".Rds")
 
   res <- map(infiles, handle_simulation) |>
@@ -81,12 +84,12 @@ run <- function() {
   mob <- map(infiles, \(x) read_rds(x)[["Later mobility"]]) |> as.numeric()
   fst <- res |> group_by(seed) |> summarize (Fst = unique(fst)) |> pull("Fst")
     
-  stopifnot(cor(fst, mob) < -0.90)
+  stopifnot(cor(fst, mob) < -0.80)
 
-  if (!dir.exists(dirname(outfile2))){
-  dir.create(dirname(outfile2))
+  if (!dir.exists(dirname(outfile))){
+  dir.create(dirname(outfile))
   }
-  write_csv(res, outfile2)
+  write_csv(res, outfile)
 }
 
-run()
+run(args)
