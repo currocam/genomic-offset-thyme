@@ -12,7 +12,8 @@ compute_k <- function(Y, threshold = 0.05) {
 
 go_genetic_gap <- function(Y, X, X.pred, snps.set){
   Y <- Y[, snps.set]
-  genetic.gap(input = Y, env = X, pred.env = X.pred, K=compute_k(Y))$offset  
+  k <- max(1, compute_k(Y))
+  genetic.gap(input = Y, env = X, pred.env = X.pred, K=k)$offset  
 }
 
 go_genetic_gap_test <- function(Y, X, X.pred){
