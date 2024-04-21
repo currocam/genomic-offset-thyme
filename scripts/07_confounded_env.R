@@ -11,16 +11,6 @@ source("src/R/go_offset.R")
 go_genetic_gap_test_possibly <- possibly(go_genetic_gap_test, NULL)
 
 identify_subpopulations <- function(df){
-  # n_pops <- 2:200
-  # argmin <- n_pops |>
-  #   map(\(k){
-  #      km <- kmeans(df, centers = k, nstart=25)
-  #      ss <- silhouette(km$cluster, dist(df))
-  #      mean(ss[, 3])
-  #   }) |>
-  #   as.numeric() |>
-  #   which.min()
-  # k <- n_pops[[argmin]]
   kmeans(df, centers = 11*11, nstart=100)$cluster
 }
 
@@ -46,11 +36,11 @@ handle_simulation <- function(file){
   X <- matrix(c(
     data[["Current env 1"]], data[["Current env 2"]]
   ),ncol=2) |>
-    cbind(replicate(100, rnorm(n)))
+    cbind(replicate(2, rnorm(n)))
   X.pred <-  matrix(c(
     data[["Future env 1"]], data[["Future env 2"]]
   ),ncol = 2) |>
-    cbind(replicate(100, rnorm(n)))
+    cbind(replicate(2, rnorm(n)))
   # Causal offset
   causal_loci <- c(data[["Index QTLs 1"]])
   causal <- go_genetic_gap(Y, X[,1], X.pred[,1], causal_loci)

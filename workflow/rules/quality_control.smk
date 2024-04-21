@@ -67,7 +67,7 @@ rule env_confounded_env:
     input:
         files=expand(
             "steps/slim/{model}_s{seed}_nQTL1s{n}_nQTL2s_{n}.Rds",
-            seed=range(100, 150),
+            seed=range(100, 200),
             n=[100],
             model=["m4.3"],
         ),
