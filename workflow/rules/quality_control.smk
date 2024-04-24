@@ -6,16 +6,16 @@ rule quality_control:
             n=[20, 50, 100],
             model=["m3.1", "m3.2"],
         ),
-        script="scripts/02_local_adaptation_scenarios.R",
+        script="scripts/01_local_adaptation_scenarios.R",
     output:
-        "results/local_adaptation_scenarios/m3_offsets.csv",
+        "results/local_adaptation_scenarios/quality_control.csv.gz",
     log:
         "logs/local_adaptation_scenarios/m3_offsets.log",
     resources:
         mem_mb=16000,
-        runtime=300,
+        runtime=400,
     shell:
-        "Rscript --vanilla {input.script} > {log} 2> {log}"
+        "Rscript --vanilla {input.script} {input.files} {output} > {log} 2> {log}"
 
 rule check_ld_quality_control:
     input:
