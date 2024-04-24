@@ -18,7 +18,7 @@ compute_genomic_offset <- function(file, causal_function, empirical_function) {
         rnorm(100), rnorm(100)
       ),ncol=4)
   X.pred <- matrix(c(
-        simulation[["Current env 1"]], simulation[["Current env 2"]],
+        simulation[["Future env 1"]], simulation[["Future env 2"]],
         rnorm(100), rnorm(100)
       ),ncol=4)
   
@@ -34,7 +34,7 @@ run <- function(infiles, outfile){
       f, go_rona, \(Y, X, X.pred) go_rona(Y, X, X.pred, 1:ncol(Y)))
       ) |>
     bind_rows() |>
-    mutate(method = "rona")
+    mutate(method = "RONA")
 
   print("Running RDA...")
   rda <- infiles |>
