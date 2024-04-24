@@ -2,7 +2,7 @@
 
 julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "1413f4f09b5fc42f381cc999760a6ba87bf50964"
+project_hash = "b8c810005dc4544c22969715fd5ceea83303976e"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -14,6 +14,11 @@ weakdeps = ["ChainRulesCore", "Test"]
     [deps.AbstractFFTs.extensions]
     AbstractFFTsChainRulesCoreExt = "ChainRulesCore"
     AbstractFFTsTestExt = "Test"
+
+[[deps.AbstractTrees]]
+git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
+uuid = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
+version = "0.4.5"
 
 [[deps.Accessors]]
 deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "LinearAlgebra", "MacroTools", "Test"]
@@ -105,6 +110,12 @@ version = "0.3.2"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+
+[[deps.BenchmarkTools]]
+deps = ["JSON", "Logging", "Printf", "Profile", "Statistics", "UUIDs"]
+git-tree-sha1 = "f1dff6729bc61f4d49e140da1af55dcd1ac97b2f"
+uuid = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+version = "1.5.0"
 
 [[deps.BioCore]]
 deps = ["Automa", "BufferedStreams", "YAML"]
@@ -469,6 +480,12 @@ git-tree-sha1 = "c6033cc3892d0ef5bb9cd29b7f2f0331ea5184ea"
 uuid = "f5851436-0d7a-5f13-b9de-f02708fd171a"
 version = "3.3.10+0"
 
+[[deps.FastGaussQuadrature]]
+deps = ["LinearAlgebra", "SpecialFunctions", "StaticArrays"]
+git-tree-sha1 = "fd923962364b645f3719855c88f7074413a6ad92"
+uuid = "442a2c76-b920-505d-bb47-c5924d526838"
+version = "1.0.2"
+
 [[deps.FileIO]]
 deps = ["Pkg", "Requires", "UUIDs"]
 git-tree-sha1 = "c5c28c245101bd59154f649e19b038d15901b5dc"
@@ -553,6 +570,26 @@ deps = ["Artifacts", "Bzip2_jll", "Cairo_jll", "FFMPEG_jll", "Fontconfig_jll", "
 git-tree-sha1 = "77f81da2964cc9fa7c0127f941e8bce37f7f1d70"
 uuid = "d2c73de3-f751-5644-a686-071e5b155ba9"
 version = "0.73.2+0"
+
+[[deps.GSL]]
+deps = ["GSL_jll", "Libdl", "Markdown"]
+git-tree-sha1 = "3ebd07d519f5ec318d5bc1b4971e2472e14bd1f0"
+uuid = "92c85e6c-cbff-5e0c-80f7-495c94daaecd"
+version = "1.0.1"
+
+[[deps.GSL_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "56f1e2c9e083e0bb7cf9a7055c280beb08a924c0"
+uuid = "1b77fbbe-d8ee-58f0-85f9-836ddc23a7a4"
+version = "2.7.2+0"
+
+[[deps.GenomicOffsets]]
+deps = ["DataFrames", "Distributions", "LinearAlgebra", "PkgBenchmark", "RandomMatrices", "Serialization", "Statistics"]
+git-tree-sha1 = "a71ca85399cf19c549c37aebf2338987be03cc9a"
+repo-rev = "main"
+repo-url = "https://github.com/currocam/GenomicOffsets.jl"
+uuid = "a14cffeb-9865-4886-ab3c-a25a7c08f73f"
+version = "1.0.0-DEV"
 
 [[deps.Gettext_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "XML2_jll"]
@@ -759,6 +796,12 @@ version = "1.2.2"
 [[deps.LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
 uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
+
+[[deps.LeftChildRightSiblingTrees]]
+deps = ["AbstractTrees"]
+git-tree-sha1 = "fb6803dafae4a5d62ea5cab204b1e657d9737e7f"
+uuid = "1d6d02ad-be62-4b6b-8a6d-2f90e265016e"
+version = "0.2.0"
 
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
@@ -1066,6 +1109,12 @@ deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 version = "1.10.0"
 
+[[deps.PkgBenchmark]]
+deps = ["BenchmarkTools", "Dates", "InteractiveUtils", "JSON", "LibGit2", "Logging", "Pkg", "Printf", "TerminalLoggers", "UUIDs"]
+git-tree-sha1 = "e4a10b7cdb7ec836850e43a4cee196f4e7b02756"
+uuid = "32113eaa-f34f-5b0d-bd6c-c81e245fc73d"
+version = "0.2.12"
+
 [[deps.PlotThemes]]
 deps = ["PlotUtils", "Statistics"]
 git-tree-sha1 = "1f03a2d339f42dca4a4da149c7e15e9b896ad899"
@@ -1143,6 +1192,16 @@ version = "2.3.1"
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
+[[deps.Profile]]
+deps = ["Printf"]
+uuid = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
+
+[[deps.ProgressLogging]]
+deps = ["Logging", "SHA", "UUIDs"]
+git-tree-sha1 = "80d919dee55b9c50e8d9e2da5eeafff3fe58b539"
+uuid = "33c8b6b6-d38a-422a-b730-caa89a2f386c"
+version = "0.1.4"
+
 [[deps.ProgressMeter]]
 deps = ["Distributed", "Printf"]
 git-tree-sha1 = "00099623ffee15972c16111bcf84c58a0051257c"
@@ -1180,6 +1239,12 @@ uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 [[deps.Random]]
 deps = ["SHA"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
+[[deps.RandomMatrices]]
+deps = ["Combinatorics", "Distributions", "FastGaussQuadrature", "GSL", "LinearAlgebra", "Random", "SpecialFunctions", "Test"]
+git-tree-sha1 = "ce39acdf57c11919b957afa1974fe774b8f94fcc"
+uuid = "2576dda1-a324-5b11-aa66-c48ed7e3c618"
+version = "0.5.4"
 
 [[deps.Ratios]]
 deps = ["Requires"]
@@ -1475,6 +1540,12 @@ deps = ["LinearAlgebra"]
 git-tree-sha1 = "1feb45f88d133a655e001435632f019a9a1bcdb6"
 uuid = "62fd8b95-f654-4bbd-a8a5-9c27f68ccd50"
 version = "0.1.1"
+
+[[deps.TerminalLoggers]]
+deps = ["LeftChildRightSiblingTrees", "Logging", "Markdown", "Printf", "ProgressLogging", "UUIDs"]
+git-tree-sha1 = "f133fab380933d042f6796eda4e130272ba520ca"
+uuid = "5d786b92-1e48-4d6f-9151-6b4477ca9bed"
+version = "0.1.7"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
