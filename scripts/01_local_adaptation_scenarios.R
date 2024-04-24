@@ -63,6 +63,7 @@ run <- function(infiles, outfile){
     separate_wider_delim(file, "_", names = c("slim", "seed", NA, NA, "QTLs")) |>
     mutate(
       slim = basename(slim),
+      QTLs = str_remove_all(QTLs, ".Rds") |> as.integer(),
       #m3.1 non local, m3.2 local, other NA
       scenario = case_when(
         grepl("m3.1", slim) ~ "Non local adaptation",
