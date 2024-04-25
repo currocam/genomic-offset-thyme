@@ -8,9 +8,11 @@ include: "rules/quality_control.smk"
 include: "rules/linkage_disequilibrium.smk"
 include: "rules/thyme_prepro.smk"
 include: "rules/thyme.smk"
+include: "rules/climate_change.smk"
 
 
 rule all:
     input:
+        "results/local_adaptation_scenarios/quality_control.csv.gz",
+        "results/local_adaptation_scenarios/quality_control_bootstrapping.csv.gz",
         f"results/allele_freqs/{config['GENOTYPE_BASE_FILE']}.csv",
-        "steps/misidentified_snps/.done",

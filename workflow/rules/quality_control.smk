@@ -17,6 +17,27 @@ rule quality_control:
     shell:
         "Rscript --vanilla {input.script} {input.files} {output} > {log} 2> {log}"
 
+rule quality_control_boots:
+    input:
+        files=expand(
+            "steps/slim/{model}_s{seed}_nQTL1s{n}_nQTL2s_{n}.Rds",
+            seed=range(100, 110),
+            n=[20, 50, 100],
+            model=["m3.1", "m3.2"],
+        ),
+        script="scripts/02_local_adaptation_scenarios_bootstraps.jl",
+    output:
+        "results/local_adaptation_scenarios/quality_control_bootstrapping.csv.gz",
+    log:
+        "logs/local_adaptation_scenarios/quality_control_bootstrapping.log",
+    threads: 5,
+    resources:
+        mem_mb=16000,
+        runtime=400,
+    shell:
+        "julia -t {threads} --project=. {input.script} {input.files} {output} > {log} 2> {log}"
+
+
 rule check_ld_quality_control:
     input:
         files=expand(
