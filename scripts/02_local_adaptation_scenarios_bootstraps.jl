@@ -1,4 +1,4 @@
-using RCall, GenomicOffsets, Statistics, DataFrames, MultipleTesting, CSV, Dates
+using RCall, GenomicOffsets, Statistics, DataFrames, MultipleTesting, CSV, Dates, Distributed
 R"library(tidyverse)"
 
 function log(x...)
@@ -41,9 +41,41 @@ function causal_genomic_offset(Y::Matrix{T1}, X::Matrix{T2}, Xstar::Matrix{T2}, 
     return (offsets=offsets, K=K, loci=loci)
 end
 
+function bootstrap(Y::Matrix{T1}, X::Matrix{T2}, Xstar::Matrix{T2}, nboot::Int; scale=true, λ=0.0001, FTest_FDR=0.1, TW_threshold=0.01) where {T1<:Real,T2<:Real}
+    if scale
+        mx = mean(X, dims=1)
+        sdx = std(X, dims=1)
+        X = (X .- mx) ./ sdx
+        Xstar = (Xstar .- mx) ./ sdx
+    end
+    Y = Y .- mean(Y, dims=1)
+    # Undefined offset matrix
+    offsets = Array{Float64}(undef, size(X, 1), nboot)
+    latent_factors = Array{Int}(undef, nboot)
+    nputativeloci = Array{Int}(undef, nboot) 
+
+    for index in 1:nboot
+        idx = rand(1:size(Y, 2), size(Y, 2))
+        Ytemp = Y[:, idx]
+        K = latent_factors_tracy_widom(Ytemp, TW_threshold, false)
+        latent_factors[index] = K
+        model = RidgeLFMM(Ytemp, X, K, λ; center=false)
+        pvalues = LFMM_Ftest(model, Ytemp, X) |> vec
+        qvalues =  MultipleTesting.adjust(pvalues, BenjaminiHochberg())
+        putative_loci = findall(qvalues .< FTest_FDR)
+        nputativeloci[index] = length(putative_loci)
+        Bt = model.Bt[:, putative_loci]
+        offsets[:, index] = geometric_genomic_offset(Bt, X, Xstar)
+    end
+    return (offsets=offsets, latent_factors=latent_factors, nputativeloci=nputativeloci)
+
+end
+
+
 function grid_conditions(infile)
     R"""
-    thresholds <- c(0.01, 0.05, 0.1)
+    #thresholds <- c(0.01, 0.05, 0.1)
+    thresholds <- c(0.01)
     lambdas <- c(0.00001)
     conditions <- expand_grid(FTest_FDR = thresholds, TW_threshold = thresholds, lambda = lambdas) |>
         mutate(file = $infile) |>
@@ -79,7 +111,7 @@ function handle_row!(row, Y, X, Xstar, minuslogfitness, causal_loci)
     # Compute offsets
     causal_offset = causal_genomic_offset(Y, X, Xstar, causal_loci; scale=true, λ=row.lambda, TW_threshold=row.TW_threshold)
     empirical_offset = empirical_genomic_offset(Y, X, Xstar; scale=true, λ=row.lambda, FTest_FDR=row.FTest_FDR, TW_threshold=row.TW_threshold)
-    boots = bootstrap_genetic_gap(Y, X, Xstar, 100; λ=row.lambda, scale=true, FTest_FDR=row.FTest_FDR, TW_threshold=row.TW_threshold)
+    boots = bootstrap(Y, X, Xstar, 100; λ=row.lambda, scale=true, FTest_FDR=row.FTest_FDR, TW_threshold=row.TW_threshold)
     # Latent factors
     row.empirical_K = empirical_offset.K
     row.causal_K = causal_offset.K
@@ -110,6 +142,7 @@ function fix_loci(loci, removed)
 end
 
 function handle_file(infile)
+    log("Processing $infile")
     # Use R code from other scripts for simplicity
     R"""
     simulation <- read_rds($infile)
@@ -142,7 +175,7 @@ function handle_file(infile)
     df = grid_conditions(infile)
     log("Testing $(size(df, 1)) conditions")
 
-    Threads.@threads for row in eachrow(df)
+    for row in eachrow(df)
         log("Processing condition $(row.FTest_FDR) $(row.TW_threshold) $(row.lambda)")
         handle_row!(row, Y, X, Xstar, minuslogfitness, causal_loci)
     end
@@ -150,11 +183,7 @@ function handle_file(infile)
 end
 
 function run(infiles, outfile)
-    dfs = DataFrame[]
-    for infile in infiles
-        log("Processing $infile")
-        push!(dfs, handle_file(infile))
-    end
+    dfs = map(handle_file, infiles);
     df = vcat(dfs...)
     CSV.write(outfile, df; compress=true)
 end

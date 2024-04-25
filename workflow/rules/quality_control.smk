@@ -30,7 +30,6 @@ rule quality_control_boots:
         "results/local_adaptation_scenarios/quality_control_bootstrapping.csv.gz",
     log:
         "logs/local_adaptation_scenarios/quality_control_bootstrapping.log",
-    threads: 5,
     resources:
         mem_mb=16000,
         runtime=400,
