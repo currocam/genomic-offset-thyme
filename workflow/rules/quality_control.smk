@@ -37,6 +37,27 @@ rule quality_control_boots:
         "julia -t {threads} --project=. {input.script} {input.files} {output} > {log} 2> {log}"
 
 
+rule boot_regressions:
+    input:
+        files=expand(
+            "steps/slim/{model}_s{seed}_nQTL1s{n}_nQTL2s_{n}.Rds",
+            seed=[105],
+            n=[20, 50, 100],
+            model=["m3.2"],
+        ),
+        script="scripts/03_fitness_offset_regression_bootstraps.jl",
+    output:
+        "results/local_adaptation_scenarios/regression_bootstraps.csv.gz",
+    log:
+        "logs/local_adaptation_scenarios/regression_bootstraps.log",
+    resources:
+        mem_mb=16000,
+        runtime=100,
+    shell:
+        "julia --project=. {input.script} {input.files} {output} > {log} 2> {log}"
+
+
+
 rule check_ld_quality_control:
     input:
         files=expand(
