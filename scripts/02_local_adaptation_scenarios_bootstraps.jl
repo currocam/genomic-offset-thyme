@@ -74,8 +74,7 @@ end
 
 function grid_conditions(infile)
     R"""
-    #thresholds <- c(0.01, 0.05, 0.1)
-    thresholds <- c(0.01)
+    thresholds <- c(0.01, 0.05, 0.1)
     lambdas <- c(0.00001)
     conditions <- expand_grid(FTest_FDR = thresholds, TW_threshold = thresholds, lambda = lambdas) |>
         mutate(file = $infile) |>
