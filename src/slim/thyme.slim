@@ -1,0 +1,360 @@
+// Sigmoid fitness
+function (numeric)fitnessEcotype1(numeric env1, numeric env2) {
+	x = (env1 - 0.5) - (env2 - 0.5);
+	return sapply(sigmoid(8*x), "min(1.0, applyValue + 0.2);");
+}
+
+function (numeric)fitnessEcotype2(numeric env1, numeric env2) {
+	x = (env1 - 0.5) - (env2 - 0.5);
+	return sapply(sigmoid(-8*x), "min(1.0, applyValue + 0.2);");
+}
+
+function (numeric)sigmoid(numeric x) {
+	return 1 / (1 + exp(-1*x));
+
+}
+
+// Either phenolic or non phenolic
+modifyChild() {
+	p = sigmoid(sum(child.genomes.sumOfMutationsOfType(m2)));
+	child.tagL0 = (rbinom(1, 1, p) == 0);
+	return T;
+}
+
+initialize() {
+	initializeSLiMModelType("nonWF");
+	initializeSLiMOptions(dimensionality="xy", periodicity="xy");
+	defineConstant("K", 11);   // carrying capacity
+	defineConstant("S", 0.8);   // spatial competition distanced
+	
+	// Neutral mutations
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	m1.convertToSubstitution = T;
+	
+	initializeMutationType("m2", 0.5, "n", 0, 1);   // QTL
+	m2.convertToSubstitution = F;
+	
+	
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, 0, 110000);
+	initializeMutationRate(3e-6);
+	initializeRecombinationRate(1e-2);
+	
+	// spatial competition
+	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=S);
+	
+	// spatial mate choice
+	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=0.5);
+}
+
+// We want to handle the fitness effect manually
+mutationEffect(m2){return 1.0;}
+
+1 early() {
+	
+	sim.addSubpop("p1", 500);
+	p1.setSpatialBounds(c(0.0, 0.0, 12.0, 12.0));
+	
+	// random initial positions
+	p1.individuals.x = runif(500, 5, 7);
+	p1.individuals.y = runif(500, 5, 7);
+	
+	//Define causal env predictors that correspond to PC1 and PC2
+	mapVar1 = c();
+	mapVar2 = c();
+	for (i in seq(1,12))
+	{
+		line1 = c();
+		for (j in seq(1,12)){
+			line1 = c(line1, runif(1, (1/12)*(j-1), (1/12)*j));
+		}
+		mapVar1 = rbind(mapVar1, line1);
+		line2 = c();
+		for (j in seq(12, 1, -1)){
+			line2 = c(line2, runif(1, (1/12)*(j-1), (1/12)*j));
+		}
+		mapVar2 = rbind(mapVar2, line2);
+	}
+	
+	
+	
+	
+	// MAP CREATION and MAP VARIATION
+	// map1 contains the *current* causal env predictor of trait one
+	defineConstant("var1", mapVar1);
+	// We use it to colour (if interactive)
+	p1.defineSpatialMap("map1", "xy", var1, interpolate=F,valueRange=c(0.0, 1.0), colors=c("white", "red"));
+	
+	// map2 contains the *future* causal env predictor
+	mapVar1Final = mapVar1 + runif(144, 0, 1);
+	mapVar1Final = ifelse(mapVar1Final>1, 1.1, mapVar1Final);
+	defineConstant("var1final", mapVar1Final);
+	p1.defineSpatialMap("map2", "xy", var1final, interpolate=F);
+	
+	// map3 contains the *current* causal env
+	defineConstant("var2", mapVar2);
+	p1.defineSpatialMap("map3", "xy", var2, interpolate=F);
+	
+	// map4 contains the *future* causal env predictor of trait two
+	mapVar2Final = mapVar2 - runif(144, 0, 1);
+	Var2Variation = mapVar2Final - mapVar2;
+	defineConstant("var2final", mapVar2Final);
+	p1.defineSpatialMap("map4", "xy", var2final, interpolate=F);
+	
+	// We define a frontier, such that everything out has a fitness of zero
+	mapFrontiere = rep(0,12);
+	for (i in seq(1,10))
+	{
+		mapFrontiere = rbind(mapFrontiere, c(0, rep(1,10), 0));
+	}
+	mapFrontiere = rbind(mapFrontiere, rep(0,12));
+	
+	defineConstant("varfrontiere", mapFrontiere);
+	p1.defineSpatialMap("mapFrontiere", "xy", varfrontiere, interpolate=F);
+	
+	// Adding frontiere init
+	mapFrontiereinit = c();
+	for (i in seq(1,4))
+	{
+		mapFrontiereinit = rbind(mapFrontiereinit, rep(0,12));
+	}
+	
+	for (i in seq(1,4))
+	{
+		mapFrontiereinit = rbind(mapFrontiereinit, c(rep(0,4), rep(1,4), rep(0,4)));
+	}
+	for (i in seq(1,4))
+	{
+		mapFrontiereinit = rbind(mapFrontiereinit, rep(0,12));
+	}
+	
+	defineConstant("varfrontiereinit", mapFrontiereinit);
+	p1.defineSpatialMap("mapFrontiereinit", "xy", varfrontiereinit, interpolate=F);
+
+}
+
+// Purely demographic phase shaping population structure
+// NO SELECTION
+
+1:20200 late()
+{
+	// move around a bit
+	for (ind in p1.individuals)
+	{
+		newPos = ind.spatialPosition + runif(2, -0.3, 0.3);
+		ind.setSpatialPosition(p1.pointPeriodic(newPos));
+	}
+	
+	// then look for mates
+	i2.evaluate(sim.subpopulations);
+}
+
+1:20200 reproduction() {
+	// choose our nearest neighbor as a mate, within the max distance
+	mate = i2.nearestNeighbors(individual, 100);
+	
+	for (i in seqLen(rpois(1, 0.1)))
+	{
+		if (mate.size()){
+			mate_index = rdunif(1,1,mate.size());
+			offspring = subpop.addCrossed(individual, mate[mate_index-1]);
+		}
+		else
+			offspring = individual;
+		
+		// set offspring position
+		pos = individual.spatialPosition + rnorm(2, 0, 0.3);
+		offspring.setSpatialPosition(p1.pointPeriodic(pos));
+	}
+}
+
+
+1:20000 early() {
+	i1.evaluate(sim.subpopulations);
+	
+	// spatial competition provides density-dependent selection
+	inds = p1.individuals;
+	competition = i1.totalOfNeighborStrengths(inds);
+	competition = (competition + 1) / (PI * S^2);
+	inds.fitnessScaling = K / competition;
+	
+	location = inds.spatialPosition[rep(c(T,T), inds.size())];
+	frontscale = p1.spatialMapValue("mapFrontiereinit", location);
+	inds.fitnessScaling = inds.fitnessScaling * frontscale;
+}
+
+20000:20200 early() {
+	i1.evaluate(sim.subpopulations);
+	
+	// spatial competition provides density-dependent selection
+	inds = p1.individuals;
+	inds.color = ifelse(inds.tagL0, "red", "blue");
+	competition = i1.totalOfNeighborStrengths(inds);
+	competition = (competition + 1) / (PI * S^2);
+	inds.fitnessScaling = K / competition;
+	
+	location = inds.spatialPosition[rep(c(T,T), inds.size())];
+	frontscale = p1.spatialMapValue("mapFrontiere", location);
+	inds.fitnessScaling = inds.fitnessScaling * frontscale;
+}
+
+
+// SELECTION PHASE 
+
+20200:22000 late()
+{
+	// move around a bit
+	for (ind in p1.individuals)
+	{
+		newPos = ind.spatialPosition + runif(2, -0.3, 0.3);
+		ind.setSpatialPosition(p1.pointPeriodic(newPos));
+	}
+	
+	// then look for mates
+	i2.evaluate(sim.subpopulations);
+}
+
+20200:22000 reproduction() {
+	// choose our nearest neighbor as a mate, within the max distance
+	mate = i2.nearestNeighbors(individual, 100);
+	
+	for (i in seqLen(rpois(1, 0.1)))
+	{
+		if (mate.size()){
+			mate_index = rdunif(1,1,mate.size());
+			offspring = subpop.addCrossed(individual, mate[mate_index-1]);
+		}
+		else
+			offspring = individual;
+		
+		// set offspring position
+		pos = individual.spatialPosition + rnorm(2, 0, 0.3);
+		offspring.setSpatialPosition(p1.pointPeriodic(pos));
+	}
+}
+
+22000:25001 late()
+{
+	// move around a bit
+	for (ind in p1.individuals)
+	{
+		newPos = ind.spatialPosition + runif(2, -0.1, 0.1);
+		ind.setSpatialPosition(p1.pointPeriodic(newPos));
+	}
+	
+	// then look for mates
+	i2.evaluate(sim.subpopulations);
+}
+
+22000:25001 reproduction() {
+	// choose our nearest neighbor as a mate, within the max distance
+	mate = i2.nearestNeighbors(individual, 100);
+	
+	for (i in seqLen(rpois(1, 0.1)))
+	{
+		if (mate.size()){
+			mate_index = rdunif(1,1,mate.size());
+			offspring = subpop.addCrossed(individual, mate[mate_index-1]);
+		}
+		else
+			offspring = individual;
+		
+		// set offspring position
+		pos = individual.spatialPosition + rnorm(2, 0, 0.05);
+		offspring.setSpatialPosition(p1.pointPeriodic(pos));
+	}
+}
+
+// We manually *add* mutations in some of the genomes
+20200 early() {
+	q1 = NULL;
+	for (i in seq(1, 3)){
+		pos = 2000 * i;
+		target1 = sample(p1.genomes, 300);
+		target1.addNewDrawnMutation(m2, pos);
+		p = sim.subpopulations.individuals.sumOfMutationsOfType(m2);
+		q1 = c(q1, pos);
+	}
+	// Q1 contains the positions of QTLs of trait 1
+	defineConstant("Q1", q1);
+}
+
+20201:25000 early() {
+	// Fitness effect of both traits
+	inds = sim.subpopulations.individuals;
+	inds.color = ifelse(inds.tagL0, "red", "blue");
+	
+	location = inds.spatialPosition[rep(c(T,T), inds.size())];
+	pc1Env = p1.spatialMapValue("map1", location);
+	pc2Env = p1.spatialMapValue("map3", location);
+	
+	inds.fitnessScaling = ifelse(
+		inds.tagL0,
+		fitnessEcotype1(pc1Env, pc2Env),
+		fitnessEcotype2(pc1Env, pc2Env)
+		);
+	// Density regulation
+	i1.evaluate(sim.subpopulations);
+	competition = i1.totalOfNeighborStrengths(inds);
+	competition = (competition + 1) / (PI * S^2);
+	inds.fitnessScaling = inds.fitnessScaling * (K / competition);
+	
+	// Only allow individuals within bounds
+	location = inds.spatialPosition[rep(c(T,T), inds.size())];
+	frontscale = p1.spatialMapValue("mapFrontiere", location);
+	inds.fitnessScaling = inds.fitnessScaling * frontscale;
+}
+
+25001 early() {
+	// Fitness effect of both traits
+	inds = sim.subpopulations.individuals;
+	inds.color = ifelse(inds.tagL0, "red", "blue");
+	inds.genomes.outputVCF(filePath=outvcf);
+	
+	location = inds.spatialPosition[rep(c(T,T), inds.size())];
+	env1 = p1.spatialMapValue("map1", location);
+	env2 = p1.spatialMapValue("map3", location);
+	env1Fut = p1.spatialMapValue("map2", location);
+	env2Fut = p1.spatialMapValue("map4", location);
+	
+	inds.fitnessScaling =  ifelse(
+		inds.tagL0,
+		fitnessEcotype1(env1, env2),
+		fitnessEcotype2(env1, env2)
+		);
+	
+	timepoint = 0;
+	writeFile(outfile, "#QTLs");
+	writeFile(outfile, paste(Q1), append=T);
+	writeFile(outfile, paste0(c("#LocationX_T", timepoint)), append=T);
+	writeFile(outfile, paste(inds.x), append=T);
+	writeFile(outfile, paste0(c("#LocationY_T", timepoint)), append=T);
+	writeFile(outfile, paste(inds.y), append=T);
+	
+	writeFile(outfile, paste0(c("#Env1_T", timepoint)), append=T);
+	writeFile(outfile, paste(env1), append=T);
+	writeFile(outfile, paste0(c("#Env2_T", timepoint)), append=T);
+	writeFile(outfile, paste(env2), append=T);
+	
+	writeFile(outfile, paste0(c("#PredEnv1_T", timepoint)), append=T);
+	writeFile(outfile, paste(env1Fut), append=T);
+	writeFile(outfile, paste0(c("#PredEnv2_T", timepoint)), append=T);
+	writeFile(outfile, paste(env2Fut), append=T);
+	
+	writeFile(outfile, paste0(c("#Fitness_T", timepoint)), append=T);
+	current_fit = inds.fitnessScaling;
+	writeFile(outfile, paste(current_fit), append=T);
+	
+	writeFile(outfile, paste0(c("#PredFitness_T", timepoint)), append=T);
+	future_fit = ifelse(
+		inds.tagL0,
+		fitnessEcotype1(env1Fut, env2Fut),
+		fitnessEcotype2(env1Fut, env2Fut)
+		);
+	writeFile(outfile, paste(future_fit), append=T);
+	
+	writeFile(outfile, paste0(c("#Ecotypes_T", timepoint)), append=T);
+	writeFile(outfile, paste(ifelse(inds.tagL0, 1, 2)), append=T);
+	
+	catn(paste0("Current and altered mean fitness: ", mean(current_fit), ", ", mean(future_fit),", at T", timepoint));
+}

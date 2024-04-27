@@ -62,6 +62,25 @@ rule slim2:
         slim -s {wildcards.seed} -d "nQTLs1='{wildcards.nQTL1s}'" -d "nQTLs2='{wildcards.nQTL2s}'" -d "outvcf='{output[0]}'" -d "outfile='{output[1]}'" < {input} > {log}
         """
 
+
+rule parse_slim:
+    input:
+        "steps/slim/{model}_s{seed}.vcf",
+        "steps/slim/{model}_s{seed}.txt",
+    output:
+        "steps/slim/{model}_s{seed}.Rds",
+    resources:
+        mem_mb=800,
+        runtime=5,
+    wildcard_constraints:
+        seed=r"\d+",
+    params:
+        script="workflow/scripts/parse_slim.jl",
+    shell:
+        """
+        julia  --project=. {params.script} {input} {output}
+        """
+
 rule parse_slim1:
     input:
         "steps/slim/{model}_s{seed}_nQTL1s{nQTL1s}.vcf",
