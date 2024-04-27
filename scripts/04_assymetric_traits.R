@@ -23,8 +23,8 @@ handle_simulation <- function(file){
   causal_loci <- c(data[["Index QTLs 1"]], data[["Index QTLs 2"]])
   causal <- go_genetic_gap(Y, X[,1:2], X.pred[,1:2], causal_loci)
   # All SNPs
-  empirical <- go_genetic_gap(Y, X, X.pred, 1:ncol(Y))
-  filtered <- go_genetic_gap_test(Y, X, X.pred)
+  all_snps <- go_genetic_gap(Y, X, X.pred, 1:ncol(Y))
+  empirical <- go_genetic_gap_test(Y, X, X.pred)
   # Incomplete QTLs
   incomplete_loci <- c(
     sample(data[["Index QTLs 1"]], 5), sample(data[["Index QTLs 2"]], 5),
@@ -55,8 +55,8 @@ handle_simulation <- function(file){
     current_fitness = data[["Current fitness"]],
     future_fitness = data[["Future fitness"]],
     causal_offset = causal,
-    empirical_offset = empirical,
-    empirical_putative = filtered,
+    all_snps_offset = all_snps,
+    empirical = empirical,
     incomplete_offset = incomplete,
     only_QTL1_offset = only_one,
     only_QTL2_offset = only_two,
@@ -66,12 +66,7 @@ handle_simulation <- function(file){
   )
 }
 
-run <- function() {
-  outfile <- "results/local_adaptation_scenarios/m3_offsets_asymmetric.csv"
-  infiles <- c(
-    list.files("steps/slim/", "m3.3.+.Rds", full.names = TRUE),
-    list.files("steps/slim/", "m3.4.+.Rds", full.names = TRUE)
-  )
+run <- function(infiles, outfile) {
   names(infiles) <- basename(infiles) |> str_remove(".Rds")
   set.seed(1000)
   res <- map(infiles, handle_simulation) |>
@@ -85,4 +80,7 @@ run <- function() {
   write_csv(res, outfile)
 }
 
-run()
+args <- commandArgs(trailingOnly=TRUE)
+infiles <- args[1:length(args)-1]
+outfile <- args[length(args)]
+run(infiles, outfile)

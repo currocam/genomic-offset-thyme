@@ -8,6 +8,7 @@ include: "rules/quality_control.smk"
 include: "rules/linkage_disequilibrium.smk"
 include: "rules/thyme_prepro.smk"
 include: "rules/thyme.smk"
+include: "rules/robustness_geometric.smk"
 include: "rules/climate_change.smk"
 
 
@@ -16,4 +17,5 @@ rule all:
         "results/local_adaptation_scenarios/quality_control.csv.gz",
         "results/local_adaptation_scenarios/regression_bootstraps.csv.gz",
         "results/local_adaptation_scenarios/quality_control_bootstrapping.csv.gz",
+        "results/local_adaptation_scenarios/asymmetric_fitness_variance.csv.gz",
         f"results/allele_freqs/{config['GENOTYPE_BASE_FILE']}.csv",
