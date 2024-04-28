@@ -15,6 +15,7 @@ include: "rules/climate_change.smk"
 rule all:
     input:
         "results/thyme_simulations/geometric_genomic_offset.csv.gz",
+        "results/thyme_simulations/climate_change_geometric_offset.csv.gz",
         "results/local_adaptation_scenarios/quality_control.csv.gz",
         "results/local_adaptation_scenarios/regression_bootstraps.csv.gz",
         "results/local_adaptation_scenarios/quality_control_bootstrapping.csv.gz",
