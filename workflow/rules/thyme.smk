@@ -33,7 +33,7 @@ rule thyme_climate:
         files=expand(
       "steps/slim/{model}_s{seed}.Rds",
       model=["thymeclimate"],
-      seed=range(100, 120)
+      seed=range(100, 140)
       ),
         script="scripts/09_thyme_climate_change_geometric_offset.jl",
     output:
@@ -42,6 +42,6 @@ rule thyme_climate:
         "logs/thyme_simulations/climate_change_geometric_offset.log",
     resources:
         mem_mb=8000,
-        runtime=40,
+        runtime=80,
     shell:
         "julia -t {threads} --project=. {input.script} {input.files} {output} > {log} 2> {log}"
