@@ -182,6 +182,8 @@ function handle_row(infile, sample_size, seed)
         mean_causal_cor_actual=mean_causal_cor_actual,
         climate_change_rate = data[:ClimateChangeRate],
         sample_size = sample_size,
+        sample_seed = seed,
+        file = infile
     )
 end
 
