@@ -35,13 +35,14 @@ rule thyme_climate:
       model=["thymeclimate"],
       seed=range(100, 140)
       ),
-        script="scripts/09_thyme_climate_change_geometric_offset.jl",
+        script="scripts/09_thyme_climate_change_geometric_offset.R",
     output:
         "results/thyme_simulations/climate_change_geometric_offset.csv.gz",
     log:
         "logs/thyme_simulations/climate_change_geometric_offset.log",
     resources:
-        mem_mb=8000,
-        runtime=80,
+        mem_mb=16000,
+        runtime=200,
+    threads: 3
     shell:
-        "julia -t {threads} --project=. {input.script} {input.files} {output} > {log} 2> {log}"
+        "Rscript --vanilla {input.script} {input.files} {output} > {log} 2> {log}"
