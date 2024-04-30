@@ -5,11 +5,6 @@ library(future)
 library(future.apply)
 source("src/R/go_offset.R")
 
-fix_loci <- function(loci, removed) {
-    loci <- loci[!loci %in% removed]
-    map(loci, \(locus) locus - sum(locus > removed)) |> as.numeric()
-}
-
 sample_individuals <- function(data, n){
     if (n > 0.5 * nrow(data$Genotype)) {
         sample(1:nrow(data$Genotype), n)
@@ -27,37 +22,37 @@ sample_individuals <- function(data, n){
         pull(row)
     })
 }
-
 handle_row <- function(file, sample_size, seed){
     set.seed(seed)
     data <- read_rds(file)
     Y <- data$Genotype
+    colnames(Y) <- paste0("Locus", 1:ncol(Y))
     stopifnot(mean(data$Fitness_T0) > 0.9)
 
     n <- min(sample_size, nrow(Y))
 
     sample_index <- sample_individuals(data, n)
     Y <- Y[sample_index,]
-    causal_loci <- data$QTLs
+    causal_loci <- paste0("Locus", data$`Index QTLs 1`)
 
     zero_variance_loci <- which(apply(Y, 2, var) == 0)
     if (length(zero_variance_loci) > 0) {
-        causal_loci <- fix_loci(causal_loci, zero_variance_loci)
         Y <- Y[, -zero_variance_loci]
     }
+    causal_loci_index <- which(colnames(Y) %in% causal_loci)
 
     X <- with(data, {
-        matrix(c(Env1_T0[sample_index], Env2_T0[sample_index], rnorm(n), rnorm(n)), ncol=4)
+        matrix(c(Env1_T0, Env2_T0, rnorm(length(Env2_T0)), rnorm(length(Env2_T0))), ncol=4)
     })
 
     X.pred <- with(data, {
-        matrix(c(PredEnv1_T0[sample_index], PredEnv2_T0[sample_index], rnorm(n), rnorm(n)), ncol=4)
+        matrix(c(PredEnv1_T0, PredEnv2_T0, rnorm(length(PredEnv2_T0)), rnorm(length(PredEnv2_T0))), ncol=4)
     })
 
-    neglogfitness <- -log(data$PredFitness_T0[sample_index])
-    causal <- go_genetic_gap(Y, X[,1:2], X.pred[,1:2], causal_loci)
+    neglogfitness <- -log(data$PredFitness_T0)
+    causal <- go_genetic_gap(Y, X[sample_index,1:2], X.pred[,1:2], causal_loci_index, X[,1:2])
     
-    empirical <- go_genetic_gap_test(Y, X, X.pred)
+    empirical <- go_genetic_gap_test(Y, X[sample_index,], X.pred, X)
     
     tibble_row(
         file = file,

@@ -28,10 +28,9 @@ initialize() {
 	defineConstant("S", 0.8);   // spatial competition distanced
 	
 	// Neutral mutations
-	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeMutationType("m1", 0.5, "f", 0.0); // neutral
 	m1.convertToSubstitution = T;
-	
-	initializeMutationType("m2", 0.5, "n", 0, 1);   // QTL
+	initializeMutationType("m2", 0.5, "f", 0.5);   // QTL
 	m2.convertToSubstitution = F;
 	
 	
@@ -267,16 +266,21 @@ mutationEffect(m2){return 1.0;}
 
 // We manually *add* mutations in some of the genomes
 20200 early() {
-	q1 = NULL;
-	for (i in seq(1, 3)){
-		pos = 2000 * i;
+	defineConstant("Q1", sample(27500:30500, 5));
+	for (pos in Q1){
 		target1 = sample(p1.genomes, 300);
-		target1.addNewDrawnMutation(m2, pos);
-		p = sim.subpopulations.individuals.sumOfMutationsOfType(m2);
-		q1 = c(q1, pos);
+		target1.addNewMutation(m2, sample(c(0.5, -0.5), 1),pos);
 	}
-	// Q1 contains the positions of QTLs of trait 1
-	defineConstant("Q1", q1);
+	defineConstant("Q2", sample(55000:58000, 5));
+	for (pos in Q2){
+		target1 = sample(p1.genomes, 300);
+		target1.addNewMutation(m2, sample(c(0.5, -0.5), 1),pos);
+	}
+	defineConstant("Q3", sample(82500:85500, 5));
+	for (pos in Q3){
+		target1 = sample(p1.genomes, 300);
+		target1.addNewMutation(m2, sample(c(0.5, -0.5), 1),pos);
+	}
 }
 
 20201:25000 early() {
@@ -324,8 +328,8 @@ mutationEffect(m2){return 1.0;}
 		);
 	
 	timepoint = 0;
-	writeFile(outfile, "#QTLs");
-	writeFile(outfile, paste(Q1), append=T);
+	writeFile(outfile, "#QTLs trait 1");
+	writeFile(outfile, paste(c(Q1, Q2, Q3)+1), append=T);
 	writeFile(outfile, paste0(c("#LocationX_T", timepoint)), append=T);
 	writeFile(outfile, paste(inds.x), append=T);
 	writeFile(outfile, paste0(c("#LocationY_T", timepoint)), append=T);
