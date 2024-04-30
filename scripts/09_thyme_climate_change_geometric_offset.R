@@ -81,6 +81,10 @@ handle_row <- function(file, sample_size, seed){
       ), ncol = 4
   )
 
+  # Environmental euclidean distance
+  end_dist <- (X - X.pred)^2 |> rowSums() |> sqrt()
+
+
   # Individual predicted 
   causal_ind_pred <- go_genetic_gap(Y, X[sample_index,1:2], X.pred[,1:2], causal_loci_index, X[,1:2])
   empirical_ind_pred <- go_genetic_gap_test(Y, X[sample_index,], X.pred, X)
@@ -95,6 +99,10 @@ handle_row <- function(file, sample_size, seed){
   ) |>
   assign_population(pop_centers)
 
+
+  env_meanpop_pred <- 1:K |>
+    map(\(pop) mean(end_dist[which(populations == pop)]) ) |>
+    as.numeric()
   causal_meanpop_pred <- 1:K |>
     map(\(pop) mean(causal_ind_pred[which(populations == pop)]) ) |>
     as.numeric()
@@ -128,6 +136,9 @@ handle_row <- function(file, sample_size, seed){
     empirical_meanpop_pred_cor = cor(empirical_meanpop_pred, neglog_meanpop_pred),
     causal_meanpop_actual_cor = cor(causal_meanpop_pred, neglog_meanpop_actual),
     empirical_meanpop_actual_cor = cor(empirical_meanpop_pred, neglog_meanpop_actual),
+    env_ind_pred_cor = cor(end_dist, neglog_ind_pred),
+    env_meanpop_pred_cor = cor(env_meanpop_pred, neglog_meanpop_pred),
+    env_meanpop_actual_cor = cor(env_meanpop_pred, neglog_meanpop_actual),
     climate_change_rate = data$ClimateChangeRate
   )
 }
