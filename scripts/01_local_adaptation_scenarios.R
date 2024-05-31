@@ -2,6 +2,9 @@ library(tidyverse)
 library(LEA)
 library(gradientForest)
 library(conflicted)
+library(future)
+library(furrr)
+
 source("src/R/gain_offset.R")
 source("src/R/go_offset.R")
 # So GF doesn't complain
@@ -24,13 +27,17 @@ compute_genomic_offset <- function(file, causal_function, empirical_function) {
   
   offset_causal <- causal_function(Y, X, X.pred, causal_loci)
   offset_empirical <- empirical_function(Y, X, X.pred)
-  tibble(file, offset_causal, offset_empirical, shifted_fitness)
+  res <- tibble(file, offset_causal, offset_empirical, shifted_fitness)
+  colnames(X) <- c("CurrentCausalEnv1", "CurrentCausalEnv2", "CurrentNonCausalEnv1", "CurrentNonCausalEnv2")
+  colnames(X.pred) <- c("FutureCausalEnv1", "FutureCausalEnv2", "FutureNonCausalEnv1", "FutureNonCausalEnv2")
+  cbind(res, X, X.pred)
 }
 
 run <- function(infiles, outfile){
   print("Running RONA...")
   rona <- infiles |>
-    map(\(f) compute_genomic_offset(
+    future_map(.options = furrr_options(seed = TRUE),
+    \(f) compute_genomic_offset(
       f, go_rona, \(Y, X, X.pred) go_rona(Y, X, X.pred, 1:ncol(Y)))
       ) |>
     bind_rows() |>
@@ -38,7 +45,8 @@ run <- function(infiles, outfile){
 
   print("Running RDA...")
   rda <- infiles |>
-    map(\(f) compute_genomic_offset(
+    future_map(.options = furrr_options(seed = TRUE),
+    \(f) compute_genomic_offset(
       f, go_rda, \(Y, X, X.pred) go_rda(Y, X, X.pred, 1:ncol(Y)))
       ) |>
     bind_rows() |>
@@ -46,7 +54,8 @@ run <- function(infiles, outfile){
 
   print("Running GF...")
   gf <- infiles |>
-    map(\(f) compute_genomic_offset(
+    future_map(.progress = TRUE, .options = furrr_options(seed = TRUE), 
+    \(f) compute_genomic_offset(
       f, \(Y, X, X_pred, causal_set) go_gf(Y, X, X_pred, causal_set)$go, \(Y, X, X_pred, causal_set) go_gf(Y, X, X_pred, 1:ncol(Y))$go )
       ) |>
     bind_rows() |>
@@ -54,7 +63,9 @@ run <- function(infiles, outfile){
 
   print("Running Geometric GO...")
   geometric <- infiles |>
-    map(\(f) compute_genomic_offset(f, go_genetic_gap, go_genetic_gap_test)) |>
+    future_map(.options = furrr_options(seed = TRUE),
+    \(f) compute_genomic_offset(f, go_genetic_gap, go_genetic_gap_test)
+    ) |>
     bind_rows() |>
     mutate(method = "Geometric GO")
 
@@ -67,12 +78,17 @@ run <- function(infiles, outfile){
       #m3.1 non local, m3.2 local, other NA
       scenario = case_when(
         grepl("m3.1", slim) ~ "Non local adaptation",
-        grepl("m3.2", slim) ~ "Local adaptation",
+        grepl("m3.2", slim) ~ "Home-away & local-foreign",
+        grepl("m3.5", slim) ~ "Local-foreign",
         TRUE ~ NA_character_
       )
     ) |>
     write_csv(outfile)
 }
+
+plan(cluster)
+print(paste0(c("Available workers:", availableWorkers())))
+
 
 args <- commandArgs(trailingOnly=TRUE)
 print(args)

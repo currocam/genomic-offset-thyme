@@ -4,7 +4,7 @@ rule quality_control:
             "steps/slim/{model}_s{seed}_nQTL1s{n}_nQTL2s_{n}.Rds",
             seed=range(100, 110),
             n=[20, 50, 100],
-            model=["m3.1", "m3.2"],
+            model=["m3.1", "m3.2", "m3.5"],
         ),
         script="scripts/01_local_adaptation_scenarios.R",
     output:
@@ -12,8 +12,9 @@ rule quality_control:
     log:
         "logs/local_adaptation_scenarios/m3_offsets.log",
     resources:
-        mem_mb=16000,
-        runtime=400,
+        mem_mb=25000,
+        runtime=600,
+    threads: 3,
     shell:
         "Rscript --vanilla {input.script} {input.files} {output} > {log} 2> {log}"
 
@@ -91,5 +92,24 @@ rule env_confounded_env:
     resources:
         mem_mb=3000,
         runtime=100,
+    shell:
+        "Rscript --vanilla {input.script} {input.files} {output} > {log} 2> {log}"
+
+rule only_local_foreign:
+    input:
+        files=expand(
+            "steps/slim/{model}_s{seed}_nQTL1s{n}_nQTL2s_{n}.Rds",
+            seed=range(100, 103),
+            n=[20, 50, 100],
+            model=["m3.5"],
+        ),
+        script="scripts/01_local_adaptation_scenarios.R",
+    output:
+        "foreign_local.csv.gz",
+    log:
+        "foreign_local.log",
+    resources:
+        mem_mb=16000,
+        runtime=400,
     shell:
         "Rscript --vanilla {input.script} {input.files} {output} > {log} 2> {log}"
