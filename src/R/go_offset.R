@@ -29,9 +29,10 @@ go_genetic_gap_test <- function(Y, X, X.pred, X.new = X){
   X.new <- t(t(X.new) - m.x) %*% diag(1/sd.x)
   k <- max(1, compute_k(Y))
   test <- lfmm2(Y, X, k) |> lfmm2.test(Y, X, genomic.control = TRUE, full = TRUE)
-  candidate.loci <- which(test$pvalues < 0.05 / ncol(Y))
-  if (length(candidate.loci) < 1) {
+  qvalues <- qvalue::qvalue(test$pvalues)$qvalues
+  candidates <- as.numeric(which(qvalues < 0.05))
+  if (length(candidates) < 1) {
     return(rep(0, nrow(X.new)))
   }
-  genetic.gap(input = Y, env = X, new.env = X.new, pred.env = X.pred, K=k, candidate.loci = candidate.loci)$offset
+  genetic.gap(input = Y, env = X, new.env = X.new, pred.env = X.pred, K=k, candidate.loci = candidates)$offset
 }
