@@ -11,7 +11,7 @@ source("src/R/go_offset.R")
 l2norm <- \(u, v) sqrt(sum((u-v)^2))
 
 # Main function of the script
-compute_genomic_offset <- function(file, causal_function, empirical_function) {
+compute_genomic_offset <- function(file, fn) {
   simulation <- read_rds(file)
   shifted_fitness <- simulation[["Future fitness"]]
   causal_loci <- c(simulation[["Index QTLs 1"]], simulation[["Index QTLs 2"]])
@@ -24,9 +24,14 @@ compute_genomic_offset <- function(file, causal_function, empirical_function) {
         simulation[["Future env 1"]], simulation[["Future env 2"]],
         rnorm(100), rnorm(100)
       ),ncol=4)
+
+  k <- max(1, compute_k(Y))
+  test <- lfmm2(Y, X, k) |> lfmm2.test(Y, X, genomic.control = TRUE, full = TRUE)
+  qvalues <- qvalue::qvalue(test$pvalues)$qvalues
+  candidates <- as.numeric(which(qvalues < 0.05))
   
-  offset_causal <- causal_function(Y, X, X.pred, causal_loci)
-  offset_empirical <- empirical_function(Y, X, X.pred)
+  offset_causal <- fn(Y, X, X.pred, causal_loci)
+  offset_empirical <- fn(Y, X, X.pred, candidates)
   res <- tibble(file, offset_causal, offset_empirical, shifted_fitness)
   colnames(X) <- c("CurrentCausalEnv1", "CurrentCausalEnv2", "CurrentNonCausalEnv1", "CurrentNonCausalEnv2")
   colnames(X.pred) <- c("FutureCausalEnv1", "FutureCausalEnv2", "FutureNonCausalEnv1", "FutureNonCausalEnv2")
@@ -37,18 +42,16 @@ run <- function(infiles, outfile){
   print("Running RONA...")
   rona <- infiles |>
     future_map(.options = furrr_options(seed = TRUE),
-    \(f) compute_genomic_offset(
-      f, go_rona, \(Y, X, X.pred) go_rona(Y, X, X.pred, 1:ncol(Y)))
-      ) |>
+    \(f) compute_genomic_offset(f, go_rona)
+    ) |>
     bind_rows() |>
     mutate(method = "RONA")
 
   print("Running RDA...")
   rda <- infiles |>
     future_map(.options = furrr_options(seed = TRUE),
-    \(f) compute_genomic_offset(
-      f, go_rda, \(Y, X, X.pred) go_rda(Y, X, X.pred, 1:ncol(Y)))
-      ) |>
+    \(f) compute_genomic_offset(f, go_rda)
+    ) |>
     bind_rows() |>
     mutate(method = "GO RDA")
 
@@ -56,15 +59,15 @@ run <- function(infiles, outfile){
   gf <- infiles |>
     future_map(.progress = TRUE, .options = furrr_options(seed = TRUE), 
     \(f) compute_genomic_offset(
-      f, \(Y, X, X_pred, causal_set) go_gf(Y, X, X_pred, causal_set)$go, \(Y, X, X_pred, causal_set) go_gf(Y, X, X_pred, 1:ncol(Y))$go )
-      ) |>
+      f, \(Y, X, X_pred, causal_set) go_gf(Y, X, X_pred, causal_set)$go
+      )) |>
     bind_rows() |>
     mutate(method = "GF GO")
 
   print("Running Geometric GO...")
   geometric <- infiles |>
     future_map(.options = furrr_options(seed = TRUE),
-    \(f) compute_genomic_offset(f, go_genetic_gap, go_genetic_gap_test)
+    \(f) compute_genomic_offset(f,  \(Y, X, X_pred, causal_set) go_genetic_gap(Y, X, X_pred, causal_set, X))
     ) |>
     bind_rows() |>
     mutate(method = "Geometric GO")

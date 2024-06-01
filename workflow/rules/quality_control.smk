@@ -12,9 +12,9 @@ rule quality_control:
     log:
         "logs/local_adaptation_scenarios/m3_offsets.log",
     resources:
-        mem_mb=25000,
-        runtime=600,
-    threads: 3,
+        mem_mb=20000,
+        runtime=150,
+    threads: 2,
     shell:
         "Rscript --vanilla {input.script} {input.files} {output} > {log} 2> {log}"
 
