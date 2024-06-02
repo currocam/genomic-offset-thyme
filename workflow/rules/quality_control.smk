@@ -71,10 +71,11 @@ rule env_uncorrelated_env:
     log:
         "logs/local_adaptation_scenarios/m4_offsets_uncorrelated.log",
     resources:
-        mem_mb=3000,
-        runtime=100,
+        mem_mb=10000,
+        runtime=50,
+    threads: 5
     shell:
-        "Rscript --vanilla {input.script} > {log} 2> {log}"
+        "Rscript --vanilla {input.script} {input.files1} {output}> {log} 2> {log}"
 
 rule env_confounded_env:
     input:
@@ -90,8 +91,9 @@ rule env_confounded_env:
     log:
         "logs/local_adaptation_scenarios/m4_offsets_confounded.log",
     resources:
-        mem_mb=3000,
+        mem_mb=10000,
         runtime=100,
+    threads: 5
     shell:
         "Rscript --vanilla {input.script} {input.files} {output} > {log} 2> {log}"
 

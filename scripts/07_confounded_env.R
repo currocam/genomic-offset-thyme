@@ -1,11 +1,12 @@
 #!/usr/bin/env Rscript
-args <- commandArgs(trailingOnly=TRUE)
-
 library(tidyverse)
 library(LEA)
 library(cluster) 
 library(popkin)
 library(conflicted)
+library(future)
+library(furrr)
+
 source("src/R/go_offset.R")
 
 go_genetic_gap_test_possibly <- possibly(go_genetic_gap_test, NULL)
@@ -43,12 +44,13 @@ handle_simulation <- function(file){
     cbind(replicate(2, rnorm(n)))
   # Causal offset
   causal_loci <- c(data[["Index QTLs 1"]])
-  causal <- go_genetic_gap(Y, X[,1], X.pred[,1], causal_loci)
-  causal_one_confounded <- go_genetic_gap(Y, X[,c(1, 2)], X.pred[,c(1, 2)], causal_loci)
+  causal <- go_genetic_gap(Y, X[,1,drop=FALSE], X.pred[,1,drop=FALSE], causal_loci, X[,1,drop=FALSE])
+  causal_one_confounded <- go_genetic_gap(Y, X[,c(1, 2)], X.pred[,c(1, 2)], causal_loci, X[,c(1, 2)])
   # All SNPs
-  empirical <- go_genetic_gap_test_possibly(Y[,variable_loci], X[,c(1, 3, 4)], X.pred[,c(1, 3, 4)])
-  empirical_one_confounded <- go_genetic_gap_test_possibly(Y[,variable_loci], X[,1:4], X.pred[,1:4])
+  empirical <- go_genetic_gap_test_possibly(Y[,variable_loci], X[,c(1, 3, 4)], X.pred[,c(1, 3, 4)], X[,c(1, 3, 4)])
+  empirical_one_confounded <- go_genetic_gap_test_possibly(Y[,variable_loci], X[,1:4], X.pred[,1:4], X[,1:4])
   tibble(
+    File = basename(file) |> str_remove(".Rds"),
     fst = fst,
     mobility = data[["Later mobility"]],
     current_fitness = data[["Current fitness"]],
@@ -66,8 +68,8 @@ run <- function(args) {
   infiles <- head(args, length(args)-1)
   names(infiles) <- basename(infiles) |> str_remove(".Rds")
 
-  res <- map(infiles, handle_simulation) |>
-    bind_rows(.id = "File") |>
+  res <- future_map(infiles, handle_simulation, .options = furrr_options(seed = TRUE)) |>
+    bind_rows() |>
     separate_wider_delim(File, "_", names = c("model", "seed",NA, NA, "QTLs")) |>
     mutate(QTLs = as.numeric(QTLs))
 
@@ -85,4 +87,8 @@ run <- function(args) {
   write_csv(res, outfile)
 }
 
+plan(cluster)
+print(paste0(c("Available workers:", availableWorkers())))
+args <- commandArgs(trailingOnly=TRUE)
+print(args)
 run(args)
