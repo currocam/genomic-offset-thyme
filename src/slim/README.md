@@ -18,3 +18,8 @@ This simulations are adapted from m2.1.slim. The idea is to contrast GO when com
 3. "m3.3.slim" Local adaptation, with asymmetric variance fitness. 
 3. "m3.4.slim" Local adaptation, with asymmetric variance fitness (stronger)
 4. "m4.1.slim" Local adaptation, one ecological gradient is now confounded with population structure (but doesn't affect the fitness)
+4. "m4.2.slim" As m4.1.slim, but with increasing population structure. 
+
+## Climate change
+
+This simulations are adapted from "m3.2.slim". The idea is to see what happens if you measure after climate change has stearted (i.e. population is no longer adapted, and env change was not instantaneous). 

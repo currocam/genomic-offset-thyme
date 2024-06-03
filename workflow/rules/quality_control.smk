@@ -45,7 +45,7 @@ rule boot_regressions:
             "steps/slim/{model}_s{seed}_nQTL1s{n}_nQTL2s_{n}.Rds",
             seed=range(102, 105),
             n=[100],
-            model=["m3.1", "m3.2"],
+            model=["m3.2"],
         ),
         script="scripts/03_fitness_offset_regression_bootstraps.jl",
     output:

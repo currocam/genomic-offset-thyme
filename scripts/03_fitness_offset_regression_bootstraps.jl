@@ -30,7 +30,7 @@ function find_candidates(Y, X, significance)
     Y = Y .- mean(Y, dims=1)
     eigenvalues = eigvals(Y * Y' / (size(Y, 1) - 1))
     _, pvalues = TracyWidom(eigenvalues)
-    K = max(findfirst(pvalues .> 0.01) - 1, 1)
+    K = max(findfirst(pvalues .> 1e-5) - 1, 1)
     model = RidgeLFMM(Y, X, K; center=false)
     pvalues = LFMM_Ftest(model, Y, X; genomic_control=true, center=false)
     qvalues = MultipleTesting.adjust(pvalues, BenjaminiHochberg())
@@ -47,8 +47,16 @@ function empirical_offset(::Type{GeometricGO}, Y, X, Xpred, significance)
     genomic_offset(GenomicOffsets.fit(GeometricGO, Y, X), X, Xpred, candidates)
 end
 
+function causal_offset(::Type{GO}, Y, X, Xpred, causal_loci) where {GO<:GenomicOffsets.AbstractGO}
+    genomic_offset(GenomicOffsets.fit(GO, Y[:, causal_loci], X), X, Xpred)
+end
+
+function causal_offset(::Type{GeometricGO}, Y, X, Xpred, causal_loci)
+    genomic_offset(GenomicOffsets.fit(GeometricGO, Y, X), X, Xpred, causal_loci)
+end
+
 function handle_file(infile, outfile)
-    FDR = 0.1
+    FDR = 0.05
     logging("Processing $infile")
     # Use R code from other scripts for simplicity
     R"""
@@ -101,7 +109,7 @@ function handle_file(infile, outfile)
     names = ["RONA", "GeometricGO", "RDAGO", "GradientForestGO"]
     for (method, name) in zip(methods, names)
         logging("Running $name...")
-        causal = genomic_offset(GenomicOffsets.fit(method, Y[:, causal_loci], X), X, Xstar) |> vec
+        causal = causal_offset(method, Y, X, Xstar, causal_loci) |> vec
         empirical = empirical_offset(method, Y, X, Xstar, FDR) |> vec
         boots = bootstrap_with_candidates(
             method, Xoshiro(1000), Y, X, Xstar, 500,

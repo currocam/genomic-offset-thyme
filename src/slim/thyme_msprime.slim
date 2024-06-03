@@ -1,0 +1,374 @@
+/// # Custom functions
+/// ## Autocorrelated landscape
+function (float)generateLandscape(f$ slope, f$ curvature, f$ amplitude, f$ aclength, [i$ minSize=64], [l$ periodic_x=F])
+{
+	code = "source('" + RScript + "');";
+	code = code + "m <- generateLandscape(" + slope + ", " + curvature + ", " + amplitude + ", " + aclength + ", " + minSize + ", " + periodic_x + ");" + "cat(as.vector(m));";
+	args = c("--vanilla", "-e", "\"" + code + "\"");
+	m = system("Rscript", args);
+	if (size(m) == 0)
+		stop("An error occurred in landscape generation");
+	m = asFloat(strsplit(m, " "));
+	l = asInteger(sqrt(size(m))); // note, may or may not be 64
+	m = matrix(m, nrow=l, ncol=l, byrow=F);
+	return m;
+}
+
+/// ## Empirical-inspired environmental PCs
+// Map altitude to PC1
+function (numeric)PC1Env(numeric altitude)
+{
+	return altitude - mean(altitude) + rnorm(length(altitude), mean=0, sd =0.05);
+}
+
+// Map altitude to PC2
+function (numeric)PC2Env(numeric altitude)
+{
+	return 1 - altitude - mean(1 - altitude) + rnorm(length(altitude), mean=0, sd =0.05);
+}
+
+/// ## Empirical-inspired viability curves
+function (numeric)sigmoid(numeric x)
+{
+	return 1 / (1 + exp(-1 * x));
+}
+
+// We know that discrete ecotypes are well-modelled with logistic regressions
+// with very high explanative power and drastic relationships
+function (numeric)logFitnessEcotype1(numeric env1, numeric env2)
+{
+	return log(sigmoid(20 * env1));
+}
+
+function (numeric)logFitnessEcotype2(numeric env1, numeric env2)
+{
+	return log(sigmoid(20 * env2));
+}
+
+function (void)defineConstantIfNotThere(string$ symbol, * value) {
+	if (!exists(symbol))
+		defineConstant(symbol, value);
+}
+
+
+/// # Initialize model
+initialize()
+{
+	/// ## Constants
+	// carrying-capacity density
+	defineConstantIfNotThere("K", 10000);
+	
+	// SIGMA_S, the spatial interaction width
+	defineConstantIfNotThere("S", 0.05);
+	
+	// maxDistance spatial mating
+	defineConstantIfNotThere("maxDistanceMate", 0.005);
+	
+	// Width PC3 Gaussian fitness
+	defineConstantIfNotThere("sigmaFitness", 1.0);
+	
+	// Random step size
+	defineConstantIfNotThere("stepSize", 0.005);
+	
+	// Proportion of female (as opposite to hermaphrodites)
+	defineConstantIfNotThere("femaleProportion", 0.6);
+	
+	// When initial burn-in finishes
+	defineConstantIfNotThere("startClimateChange", 10000);
+	// How many ticks until climate change has finished
+	defineConstantIfNotThere("ticksAfter", 1);
+	
+	// Initial state
+	defineConstantIfNotThere("initFile", "init.trees");
+	
+	// Autocorrelated landscape R
+	defineConstantIfNotThere("RScript", "landscape_ac.R");
+	
+	/// ## Set up genetics
+	// Continous nonWF model
+	initializeSLiMModelType("nonWF");
+	initializeSLiMOptions(keepPedigrees=T, dimensionality="xyz", periodicity="xy");
+	// Tree sequence recording
+	initializeTreeSeq();
+	
+	// Neutral mutations
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	m1.convertToSubstitution = T;
+	
+	// QTLs of discrete ecotypes have an effect size 0.5
+	// There'll be 3 loci, one "positive" and "negative" NTL at each
+	// An homozygous individual for 3 loci will have a probability > 0.95 
+	// of one or other ecotype (positive or negative)
+	// An heterozygous for each loci will have a prop > 0.80 ...
+	// An individual with a single NTL of 0.62 ...
+	initializeMutationType("m2", 0.5, "f", 0.5);
+	m2.convertToSubstitution = F;
+	
+	// QTLs for stabilizing selection towards PC3 optima
+	// Drawn from Gaussians
+	initializeMutationType("m3", 0.5, "n", 0.0, 1);
+	m2.convertToSubstitution = F;
+	
+	// We model a uniform big chromosome
+	// We only add PC3 continous to genome
+	initializeGenomicElementType("g1", m3, 1);
+	initializeGenomicElement(g1, 0, 11e5);
+	
+	// Standard mutation & recombination rate
+	initializeMutationRate(0);
+	initializeRecombinationRate(1e-8);
+	
+	/// ## Set up ecology
+	// Spatial competition
+	initializeInteractionType(1, "xy", reciprocal=T, maxDistance=S * 2);
+	i1.setInteractionFunction("n", 1.0, S);
+	
+	// Spatial mate choice, we don't need strengths
+	initializeInteractionType(2, "xy", reciprocal=T, maxDistance=maxDistanceMate);
+	
+	// Dictionary to store environmental data
+	defineGlobal("metadata", Dictionary());
+}
+
+// We use selection coefficients as QTLs effect sizes
+mutationEffect(m2)
+{
+	return 1.0;
+}
+mutationEffect(m3)
+{
+	return 1.0;
+}
+
+1 early() {
+	/// Set up population
+	// Read data from init and assign to p1
+	sim.readFromPopulationFile(initFile, Dictionary("p1", 0));
+	N = length(p1.individuals);
+	// Add population (with initial sex ratio) in square landspace
+	p1.individuals.tagL1 = rbinom(N, 1, femaleProportion) == 1;
+	p1.setSpatialBounds(c(0.0, 0.0, 0.0, 1.0, 1.0, 1.0));
+	p1.individuals.setSpatialPosition(p1.pointUniform(N));
+	p1.individuals.z = 0.0;
+	
+	/// ## Initiate soft selective sweep for ecotypes
+	// Starting from soft sweep
+	nSampled = asInteger(N / 4);
+	defineConstant("Q1", sample(3e5:(3e5+1000), 2));
+	sample(p1.genomes, nSampled).addNewMutation(m2, 0.5, Q1[0]);
+	sample(p1.genomes, nSampled).addNewMutation(m2, -0.5, Q1[1]);
+	defineConstant("Q2", sample(5e5:(5e5+1000), 2));
+	sample(p1.genomes, nSampled).addNewMutation(m2, 0.5, Q2[0]);
+	sample(p1.genomes, nSampled).addNewMutation(m2, -0.5, Q2[1]);
+	defineConstant("Q3", sample(6e5:(6e5+1000), 2));
+	sample(p1.genomes, nSampled).addNewMutation(m2, 0.5, Q3[0]);
+	sample(p1.genomes, nSampled).addNewMutation(m2, -0.5, Q3[1]);
+	inds = sim.subpopulations.individuals;
+	// Assign ecotypes
+	p = sigmoid(inds.sumOfMutationsOfType(m2));
+	inds.tagL0 = sapply(p, "rbinom(1, 1, 1 - applyValue) == 1;");
+	// Define unkwnown phenotypic trait
+	// It will be stored in individuals.tag
+	inds.tagF = inds.sumOfMutationsOfType(m3);
+	
+	/// # Generate landspace
+	// First, we generate "mountains" using autocorrelated algorithm
+	altitudeMatrix = generateLandscape(slope=0.5, curvature=0.0, amplitude=0.5, aclength=0.03);
+	defineConstant("ALTITUDE", p1.defineSpatialMap("altitude", "xy", altitudeMatrix, interpolate=T, valueRange=c(min(altitudeMatrix), max(altitudeMatrix)), colors=c("blue", "red")));
+	
+	// Compute PC1 and PC2 (inspired by real data, but arbitrary)
+	pc1Matrix = PC1Env(altitudeMatrix);
+	defineConstant("PC1", p1.defineSpatialMap("pc1", "xy", pc1Matrix, interpolate=T));
+	pc2Matrix = PC2Env(altitudeMatrix);
+	defineConstant("PC2", p1.defineSpatialMap("pc2", "xy", pc2Matrix, interpolate=T));
+	
+	// We define a third autocorrelated PC 
+	// It would define an optimal under stabilizing selection
+	// Now, define target env variables 	
+	pc3Matrix = generateLandscape(slope=4.0, curvature=0.5, amplitude=0.5, aclength=0.03);
+	defineConstant("meanPC3", mean(pc3Matrix));
+	pc3Matrix = pc3Matrix - meanPC3;
+	defineConstant("PC3", p1.defineSpatialMap("pc3", "xy", pc3Matrix, interpolate=T));
+	
+	/// # Landspace after climate change	
+	// Now, we have to define *target* climate after climate change
+	// PC1 (drought)
+	pc1MatrixFuture = pc1Matrix + runif(length(pc1Matrix), min=0, max=2);
+	maxPC1 = max(pc1Matrix)+0.1; // 0.1 tolerance
+	pc1MatrixFuture = matrix(sapply(pc1MatrixFuture, "min(maxPC1, applyValue);"), nrow=nrow(pc1Matrix));
+	defineConstant("PC1Ftuture", p1.defineSpatialMap("pc1Future", "xy", pc1MatrixFuture, interpolate=T));
+	// PC2 (cold)
+	pc2MatrixFuture = pc2Matrix - runif(length(pc2Matrix), min=0, max=2);
+	minPC2 = min(pc2Matrix)-0.1; // 0.1 tolerance
+	pc2MatrixFuture = matrix(sapply(pc2MatrixFuture, "max(minPC2, applyValue);"), nrow=nrow(pc2Matrix));
+	defineConstant("PC2Ftuture", p1.defineSpatialMap("pc2Future", "xy", pc2MatrixFuture, interpolate=T));
+	
+	//	PC3 (add noise)
+	pc3MatrixFuture = pc3Matrix + runif(length(pc3Matrix), -2, 2);
+	defineConstant("PC3Ftuture", p1.defineSpatialMap("pc3Future", "xy", pc3MatrixFuture, interpolate=T));
+}
+
+
+modifyChild()
+{
+	// Define unkwnown phenotypic trait
+	// It will be stored in individuals.tag
+	child.tagF = child.sumOfMutationsOfType(m3);
+	return T;
+}
+
+/// Demographic phase
+2: first()
+{
+	// Evaluate mating interaction	
+	i2.evaluate(p1);
+}
+
+/// # Reproduction
+1: reproduction()
+{
+	// If individual is female, aka, male infertile, just skip
+	// That is, if tagL1 is true, skip
+	if (individual.tagL1)
+		return;
+	nchild = rpois(1, 2);
+	if (nchild == 0)
+		return;
+	nearest = i2.nearestNeighbors(individual, 5);
+	pool = c(individual, nearest);
+	mates = sample(pool, nchild, replace=T);
+	for (mate in mates)
+	{
+		offspring = subpop.addCrossed(individual, mate);
+		
+		// Ecotypes (phenolic of non phenolic)
+		p = sigmoid(offspring.sumOfMutationsOfType(m2));
+		offspring.tagL0 = rbinom(1, 1, 1 - p) == 1;
+		
+		// Sex, either female or hermaphrodite
+		offspring.tagL1 = rbinom(1, 1, femaleProportion) == 1;
+	}
+}
+
+/// # Main loop
+1:(startClimateChange-1) early()
+{
+	// Move only offsrping: plants don't move!
+	offspring = p1.subsetIndividuals(maxAge=0);
+	p1.deviatePositions(offspring, "periodic", INF, "n", stepSize);
+	
+	// spatial competition provides density-dependent selection
+	i1.evaluate(p1);
+	inds = p1.individuals;
+	
+	// Evaluate viability	
+	location = inds.spatialPosition[rep(c(T, T, F), inds.size())];
+	altitude = ALTITUDE.mapValue(location);
+	pc1 = PC1.mapValue(location);
+	pc2 = PC2.mapValue(location);
+	logfitness = ifelse(inds.tagL0, logFitnessEcotype1(pc1, pc2), logFitnessEcotype2(pc1, pc2));	
+	// Stabilizing selection
+	phenotype = inds.tagF;
+	pc3 = PC3.mapValue(location);
+	logfitness = logfitness + log(dnorm(pc3 - phenotype, mean=0.0, sd=sigmaFitness) / dnorm(0.0, mean=0.0, sd=sigmaFitness));
+	if (exists("slimgui"))
+		inds.color = ifelse(inds.tagL0, "red", "blue");
+		
+	if (sim.cycle % 500 == 0)
+	{
+		catn("Tick: " + sim.cycle, error=T);
+		catn("Mean fitness: " + mean(exp(logfitness)), error=T);
+	}
+
+	
+	competition = i1.localPopulationDensity(inds);
+	logfitness = logfitness + log(K / competition);
+	inds.fitnessScaling = exp(logfitness);
+}
+
+/// # Climate change
+startClimateChange:(startClimateChange+ticksAfter) early()
+{
+	// Move only offsrping: plants don't move!
+	offspring = p1.subsetIndividuals(maxAge=0);
+	p1.deviatePositions(offspring, "periodic", INF, "n", 0.025);
+	
+	// spatial competition provides density-dependent selection
+	i1.evaluate(p1);
+	// Compute modified climate change & save all information
+	fraction = (sim.cycle-startClimateChange)	/ ticksAfter;
+	inds = sortBy(sim.subpopulations.individuals, "pedigreeID");
+	sim.treeSeqRememberIndividuals(inds);
+	ecotype = ifelse(inds.tagL0, "A", "B");
+	sex = ifelse(inds.tagL1, "Female", "Hermaphrodite");
+	phenotype = inds.tagF;
+	location = inds.spatialPosition[rep(c(T, T, F), inds.size())];
+	x = inds.x;
+	y = inds.y;
+	altitude = ALTITUDE.mapValue(location);
+	pc1Old = PC1.mapValue(location);
+	pc2Old = PC2.mapValue(location);
+	pc3Old = PC3.mapValue(location);
+	pc1Future = PC1Ftuture.mapValue(location);
+	pc2Future  = PC2Ftuture.mapValue(location);
+	pc3Future  = PC3Ftuture.mapValue(location);
+	pc1 = pc1Old*(1-fraction) + pc1Future*fraction;
+	pc2 = pc2Old*(1-fraction) + pc2Future*fraction;
+	pc3 = pc3Old*(1-fraction) + pc3Future*fraction;
+	// Evaluate viability 
+	currentFitness = ifelse(
+		inds.tagL0, logFitnessEcotype1(pc1, pc2),
+		logFitnessEcotype2(pc1, pc2)
+		);
+	currentFitness = currentFitness + log(dnorm(pc3 - phenotype, mean=0.0, sd=sigmaFitness) / dnorm(0.0, mean=0.0, sd=sigmaFitness));
+	futureFitness = ifelse(
+		inds.tagL0, logFitnessEcotype1(pc1Future, pc2Future),
+		logFitnessEcotype2(pc1Future, pc2Future)
+		);
+	futureFitness = futureFitness + log(dnorm(pc3Future - phenotype, mean=0.0, sd=sigmaFitness) / dnorm(0.0, mean=0.0, sd=sigmaFitness));
+	
+	// Update dictionary with information
+	metadataNew = Dictionary(
+		"ids", inds.pedigreeID,
+		"timePoint", rep(sim.cycle, length(inds.pedigreeID)),
+		"fraction", rep(fraction, length(inds.pedigreeID)),
+		"ecotype", ecotype,
+		"sex", sex,
+		"phenotype", phenotype,
+		"x", x,
+		"y", y,
+		"altitude", altitude,
+		"pc1", pc1,
+		"pc2", pc2,
+		"pc3", pc3,
+		"pc1Future", pc1Future,
+		"pc2Future", pc2Future,
+		"pc3Future", pc3Future,
+		"currentFitness", exp(currentFitness),
+		"futureFitness", exp(futureFitness)
+		);
+	metadata.appendKeysAndValuesFrom(metadataNew);
+	// Log information	
+	catn("Fraction: " + fraction, error=T);
+	catn("Current mean fitness : " + mean(exp(currentFitness)), error=T);
+	catn("Future mean fitness : " + mean(exp(futureFitness)), error=T);
+	if (exists("slimgui"))
+		inds.color = ifelse(inds.tagL0, "red", "blue");
+	// Add density regulation
+	competition = i1.localPopulationDensity(inds);
+	inds.fitnessScaling = exp(currentFitness + log(K / competition));
+}
+
+
+/// # Output
+(startClimateChange+ticksAfter) late()
+{
+	if (exists("slimgui"))
+		defineConstant("outfile", "sample.trees");
+	else
+		// Bash specific, probably
+		defineConstant("outfile", "/dev/stdout");
+	
+	sim.treeSeqOutput(outfile, metadata=metadata);
+	sim.simulationFinished();
+}
