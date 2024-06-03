@@ -43,7 +43,7 @@ rule boot_regressions:
     input:
         files=expand(
             "steps/slim/{model}_s{seed}_nQTL1s{n}_nQTL2s_{n}.Rds",
-            seed=range(100, 105),
+            seed=range(102, 105),
             n=[100],
             model=["m3.1", "m3.2"],
         ),
@@ -55,7 +55,7 @@ rule boot_regressions:
     threads: 3
     resources:
         mem_mb=16000,
-        runtime=150,
+        runtime=400,
     shell:
         "julia -t {threads} --project=. {input.script} {input.files} {output} > {log} 2> {log}"
 

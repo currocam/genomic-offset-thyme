@@ -58,6 +58,7 @@ function handle_file(infile, outfile)
         colnames(boots) <- paste0("boot", 1:ncol(boots))
         df <- boots |>
             mutate(
+                file = infile,
                 causal = causal,
                 empirical = empirical,
                 negative_log_fitness = minuslogfitness,
