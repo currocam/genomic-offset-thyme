@@ -61,7 +61,7 @@ function handle_file(infile, outfile)
     # Use R code from other scripts for simplicity
     R"""
     # For later
-    add_entries <- function(outfile, infile, causal, empirical, boots, minuslogfitness, method) {
+    add_entries <- function(outfile, infile, causal, empirical, boots, minuslogfitness, x, y, method) {
         boots <- data.frame(boots)
         colnames(boots) <- paste0("boot", 1:ncol(boots))
         df <- boots |>
@@ -70,6 +70,8 @@ function handle_file(infile, outfile)
                 causal = causal,
                 empirical = empirical,
                 negative_log_fitness = minuslogfitness,
+                x = x,
+                y = y,
                 method = method
                 )
         if (file.exists(outfile)) {
@@ -81,6 +83,8 @@ function handle_file(infile, outfile)
     simulation <- read_rds($infile)
     shifted_fitness <- simulation[["Future fitness"]]
     causal_loci <- c(simulation[["Index QTLs 1"]], simulation[["Index QTLs 2"]])
+    locx <- simulation[["Location X"]]
+    locy <- simulation[["Location Y"]]
     Y <- simulation$Genotype
     X <- matrix(c(
       simulation[["Current env 1"]], simulation[["Current env 2"]],
@@ -97,6 +101,8 @@ function handle_file(infile, outfile)
     @rget Xstar
     @rget minuslogfitness
     @rget causal_loci
+    @rget locx
+    @rget locy
     # Find columns with zero variance
     # Fix the causal_loci to be the correct indices after removing zero variance columns
     sds = vec(std(Y, dims=1))
@@ -119,7 +125,7 @@ function handle_file(infile, outfile)
         @rput empirical
         @rput boots
 
-        R"add_entries($outfile, $infile, causal, empirical, boots, minuslogfitness, $name)"
+        R"add_entries($outfile, $infile, causal, empirical, boots, minuslogfitness, locx, locy, $name)"
     end
 end
 function run(infiles, outfile)
