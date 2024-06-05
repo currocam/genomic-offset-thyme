@@ -116,3 +116,16 @@ rule only_local_foreign:
         runtime=400,
     shell:
         "Rscript --vanilla {input.script} {input.files} {output} > {log} 2> {log}"
+
+rule spurious_genomic_offset:
+    input:
+        script="scripts/11-spurious_genomic_offset.R",
+    output:
+        "results/local_adaptation_scenarios/spurious_genomic_offsets.csv.gz",
+    log:
+        "local_adaptation_scenarios/spurious_genomic_offsets.log",
+    resources:
+        mem_mb=8000,
+        runtime=15,
+    shell:
+        "Rscript --vanilla {input.script} {output} > {log} 2> {log}"
