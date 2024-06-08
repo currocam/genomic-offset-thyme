@@ -112,7 +112,7 @@ initialize()
 	// We model a uniform big chromosome
 	// We only add PC3 continous to genome
 	initializeGenomicElementType("g1", m3, 1);
-	initializeGenomicElement(g1, 0, 11e5);
+	initializeGenomicElement(g1, 0, 1e8);
 	
 	// Standard mutation & recombination rate
 	initializeMutationRate(0);
@@ -154,13 +154,13 @@ mutationEffect(m3)
 	/// ## Initiate soft selective sweep for ecotypes
 	// Starting from soft sweep
 	nSampled = asInteger(N / 4);
-	defineConstant("Q1", sample(3e5:(3e5+1000), 2));
+	defineConstant("Q1", sample(3e7:(3e7+1000), 2));
 	sample(p1.genomes, nSampled).addNewMutation(m2, 0.5, Q1[0]);
 	sample(p1.genomes, nSampled).addNewMutation(m2, -0.5, Q1[1]);
-	defineConstant("Q2", sample(5e5:(5e5+1000), 2));
+	defineConstant("Q2", sample(5e7:(5e7+1000), 2));
 	sample(p1.genomes, nSampled).addNewMutation(m2, 0.5, Q2[0]);
 	sample(p1.genomes, nSampled).addNewMutation(m2, -0.5, Q2[1]);
-	defineConstant("Q3", sample(6e5:(6e5+1000), 2));
+	defineConstant("Q3", sample(6e7:(6e7+1000), 2));
 	sample(p1.genomes, nSampled).addNewMutation(m2, 0.5, Q3[0]);
 	sample(p1.genomes, nSampled).addNewMutation(m2, -0.5, Q3[1]);
 	inds = sim.subpopulations.individuals;

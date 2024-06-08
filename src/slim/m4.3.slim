@@ -13,7 +13,7 @@ initialize() {
 	m1.convertToSubstitution = T;
 	
 	defineConstant("initialMobility", 0.3);
-	defineConstant("laterMobility", runif(1, 0.0, 0.30));
+	defineConstant("laterMobility", runif(1, 0.05, 0.50));
 
 	if (exists("slimgui")) {
 		defineConstant("nQTLs1", max(asInteger(round(runif(1) * 100)), 10));

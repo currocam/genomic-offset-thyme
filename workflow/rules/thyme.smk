@@ -103,7 +103,7 @@ rule thyme_msprime_simulation:
         "../envs/msprime.yaml"
     resources:
         mem_mb=10000,
-        runtime=60,
+        runtime=200,
     threads: 1
     shell:
         "python {input.script} {input.slim} {input.Rscript} {params.sigmaFitness} {wildcards.ticksAfter} {wildcards.seed} > {output} 2> {log}"
@@ -120,7 +120,7 @@ rule thyme_msprime_past:
         "../envs/msprime_analysis.yaml"
     resources:
         mem_mb=8000,
-        runtime=70,
+        runtime=120,
     threads: 1
     shell:
         "python {input.script} {input.tree} > {output} 2> {log}"
@@ -137,7 +137,7 @@ rule thyme_msprime_analysis:
         "../envs/msprime_analysis.yaml"
     resources:
         mem_mb=8000,
-        runtime=200,
+        runtime=30,
     threads: 1
     shell:
         "python {input.script} {input.tree} > {output} 2> {log}"
@@ -185,3 +185,9 @@ rule thyme_msprime_several:
 rule thyme_msprime_past_several:
     input:
         expand("steps/msprime/thyme_{seed}_n{ticksAfter}_past.csv", seed=range(500, 520), ticksAfter = [5, 20, 100]),
+    output:
+        "results/msprime/thyme_past.csv.gz"
+    shell:
+        "echo 'infile,fraction,category,dataset,type,statistic,pvalue' > results/msprime/thyme_past.csv && "
+        "tail -n +2 -q {input} >> results/msprime/thyme_past.csv && "
+        "gzip results/msprime/thyme_past.csv"
