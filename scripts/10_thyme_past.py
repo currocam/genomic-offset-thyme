@@ -3,6 +3,7 @@ import tskit, pyslim, msprime
 import pandas as pd
 import numpy as np
 from scipy.stats import pearsonr
+from scipy.stats import false_discovery_control
 from scipy.cluster.vq import kmeans
 pd.options.mode.copy_on_write = True
 # Julia stuff
@@ -52,6 +53,16 @@ def additive_genotype_matrix(smts, individuals, maf):
         for k in range(Y.shape[0]):
             Y[k, i] = variant.genotypes[2*k]+variant.genotypes[2*k+1]
     return Y
+
+def genomic_offset(model, X, Xpred, candidates=None):
+    try:
+        if candidates is None:
+            return np.array(jl.genomic_offset(model, X, Xpred)).reshape(X.shape[0])
+        else:
+            return np.array(jl.genomic_offset(model, X, Xpred, candidates)).reshape(X.shape[0])
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr, flush=True)
+        return np.zeros(X.shape[0])
 
 
 infile = sys.argv[1]
@@ -142,10 +153,15 @@ for chosen_fraction in fractions:
         
         # Start computing genomic offsets
         model = jl.fit(jl.GeometricGO, Y, Xtrain, tw_threshold=1e-5, λ=1e3)
-        pvalues = np.array( jl.LFMM_Ftest(model, Y, Xtrain))
-        candidates = np.array([i+1 for i, val in enumerate(pvalues) if val < 0.05])
-        trainoffset = np.array(jl.genomic_offset(model, Xtrain, Xpredtrain, candidates).reshape(Xtrain.shape[0]))
-        testoffset = np.array(jl.genomic_offset(model, Xtest, Xpredtest).reshape(Xtest.shape[0]))
+        if _type == "empirical":
+            pvalues = np.array( jl.LFMM_Ftest(model, Y, Xtrain))
+            qvalues = false_discovery_control(pvalues)
+            print(f"Number of significant SNPs with FDR: {np.sum(qvalues < 0.05)}", file=sys.stderr, flush=True)
+            candidates = np.array([i+1 for i, val in enumerate(pvalues) if val < 0.05])
+        else:
+            candidates = np.array([i+1 for i in range(Y.shape[1])])
+        trainoffset = genomic_offset(model, Xtrain, Xpredtrain, candidates)
+        testoffset = genomic_offset(model, Xtest, Xpredtest, candidates)
         # Train data
         traincor = pearsonr(neglogtrain, trainoffset)
         print_output(infile, chosen_fraction, "current", "train", _type, traincor)
@@ -194,9 +210,17 @@ for chosen_fraction in fractions:
             Xtrain_past = np.concatenate([Xtrain_past, np.random.normal(0, 1, (Xtrain_past.shape[0], 2))], axis=1)
             Xtest_past = np.concatenate([Xtest_past, np.random.normal(0, 1, (Xtest_past.shape[0], 2))], axis=1)
         
-        modelpast = jl.fit(jl.GeometricGO, Y, Xtrain_past, tw_threshold=1e-3, λ=1e-5)
-        trainoffsetpast = np.array(jl.genomic_offset(modelpast, Xtrain_past, Xpredtrain).reshape(Xtrain_past.shape[0]))
-        testoffsetpast = np.array(jl.genomic_offset(modelpast, Xtest_past, Xpredtest).reshape(Xtest_past.shape[0]))
+        modelpast = jl.fit(jl.GeometricGO, Y, Xtrain_past, tw_threshold=1e-5, λ=1e3)
+        if _type == "empirical":
+            pvalues = np.array( jl.LFMM_Ftest(modelpast, Y, Xtrain_past))
+            qvalues = false_discovery_control(pvalues)
+            print(f"Number of significant SNPs with FDR: {np.sum(qvalues < 0.05)}", file=sys.stderr, flush=True)
+            candidates = np.array([i+1 for i, val in enumerate(pvalues) if val < 0.05])
+
+        else:
+            candidates = np.array([i+1 for i in range(Y.shape[1])])
+        trainoffsetpast = genomic_offset(modelpast, Xtrain_past, Xpredtrain, candidates)
+        testoffsetpast = genomic_offset(modelpast, Xtest_past, Xpredtest, candidates)
 
         # Train data
         traincorpast = pearsonr(neglogtrain, trainoffsetpast)
@@ -223,7 +247,7 @@ for chosen_fraction in fractions:
         future_cor_euclidean_past = pearsonr(mean_euclidean_past, future_neglog)
         print_output(infile, chosen_fraction, "past_env_distance_future", "test", _type, future_cor_euclidean_past)
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr, flush=True)
+        print(f"Error: {e}", file=sys.stderr, flush=True)       
         continue
     
 
