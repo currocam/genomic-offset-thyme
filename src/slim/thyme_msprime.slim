@@ -33,16 +33,22 @@ function (numeric)sigmoid(numeric x)
 	return 1 / (1 + exp(-1 * x));
 }
 
+function (numeric)logistic(numeric x, numeric mu, numeric s)
+{	
+	return sigmoid((x-mu)/s);
+}
+
+
 // We know that discrete ecotypes are well-modelled with logistic regressions
 // with very high explanative power and drastic relationships
 function (numeric)logFitnessEcotype1(numeric env1, numeric env2)
 {
-	return log(sigmoid(20 * env1));
+	return log(logistic(-env2, 0.0, 0.5));
 }
 
 function (numeric)logFitnessEcotype2(numeric env1, numeric env2)
 {
-	return log(sigmoid(20 * env2));
+	return log(logistic(-env1, 0.0, 0.5));
 }
 
 function (void)defineConstantIfNotThere(string$ symbol, * value) {

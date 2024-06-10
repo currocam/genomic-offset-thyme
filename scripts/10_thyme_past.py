@@ -26,15 +26,16 @@ def assign_population(df, centroids):
     ks = np.argmin(squared_distances, axis=1)
     return ks
 
-def print_output(file, fraction, category, dataset, _type, cor):
+def print_output(file, fraction, category, dataset, _type, cor, radj2):
     pd.DataFrame([{
-            'file': infile,
+            'file': file,
             'fraction': fraction,
             'category': category,
             'dataset' : dataset,
             'type': _type,
             'statistic': cor.statistic,
-            'pvalue': cor.pvalue
+            'pvalue': cor.pvalue,
+            'radj2': radj2
         }]).to_csv(sys.stdout, index=False, header=False)
     sys.stdout.flush()
 
@@ -55,15 +56,20 @@ def additive_genotype_matrix(smts, individuals, maf):
     return Y
 
 def genomic_offset(model, X, Xpred, candidates=None):
+    if len(candidates) == 0:
+        return np.zeros(X.shape[0])
     try:
-        if candidates is None:
-            return np.array(jl.genomic_offset(model, X, Xpred)).reshape(X.shape[0])
-        else:
-            return np.array(jl.genomic_offset(model, X, Xpred, candidates)).reshape(X.shape[0])
+        return np.array(jl.genomic_offset(model, X, Xpred, candidates)).reshape(X.shape[0])
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr, flush=True)
         return np.zeros(X.shape[0])
 
+def adjusted_r2(r2, n, p):
+    return 1 - (1 - r2) * (n - 1) / (n - p - 1)
+
+def measure_association(x, y):
+    cor = pearsonr(x, y)
+    return cor, adjusted_r2(cor.statistic**2, len(x), 1)
 
 infile = sys.argv[1]
 
@@ -75,12 +81,12 @@ K, centroids = centroids(df, 50)
 print(f"Number of clusters: {K}", file=sys.stderr, flush=True)
 
 # Print header
-print("file,fraction,category,dataset,statistic,pvalue", file=sys.stdout, flush=True)
+print("file,fraction,category,dataset,statistic,pvalue,r2adj", file=sys.stdout, flush=True)
 fractions = np.array([elm for elm in set(df.fraction)])
 fractions = fractions[fractions < 1.0]
 # Sample 20 fractions with replacement
 np.random.seed(123)
-fractions = np.random.choice(fractions, 20, replace=True)
+fractions = np.random.choice(fractions, 40, replace=True)
 for chosen_fraction in fractions:
     try:
         # Sampling genotypes
@@ -157,29 +163,29 @@ for chosen_fraction in fractions:
             pvalues = np.array( jl.LFMM_Ftest(model, Y, Xtrain))
             qvalues = false_discovery_control(pvalues)
             print(f"Number of significant SNPs with FDR: {np.sum(qvalues < 0.05)}", file=sys.stderr, flush=True)
-            candidates = np.array([i+1 for i, val in enumerate(pvalues) if val < 0.05])
+            candidates = np.array([i+1 for i, val in enumerate(qvalues) if val < 0.05])
         else:
             candidates = np.array([i+1 for i in range(Y.shape[1])])
         trainoffset = genomic_offset(model, Xtrain, Xpredtrain, candidates)
         testoffset = genomic_offset(model, Xtest, Xpredtest, candidates)
         # Train data
-        traincor = pearsonr(neglogtrain, trainoffset)
-        print_output(infile, chosen_fraction, "current", "train", _type, traincor)
+        traincor, trainr2 = measure_association(neglogtrain, trainoffset)
+        print_output(infile, chosen_fraction, "current", "train", _type, traincor, trainr2)
         # Test data
-        testcor = pearsonr(neglogtest, testoffset)
-        print_output(infile, chosen_fraction, "current", "test", _type, testcor)
+        testcor, testr2 = measure_association(neglogtest, testoffset)
+        print_output(infile, chosen_fraction, "current", "test", _type, testcor, testr2)
         # Only test data & ecotype 1
         isA =  sampled_df.ecotype.iloc[test_index] == "A"
-        testcorA = pearsonr(neglogtest[isA], testoffset[isA])
-        print_output(infile, chosen_fraction, "current", "test_ecotypeA", _type, testcorA)
+        testcorA, testr2A = measure_association(neglogtest[isA], testoffset[isA])
+        print_output(infile, chosen_fraction, "current", "test_ecotypeA", _type, testcorA, testr2A)
         # Only test data & ecotype 2
         isB =  sampled_df.ecotype.iloc[test_index] == "B"
-        testcorB = pearsonr(neglogtest[isB], testoffset[isB])
-        print_output(infile, chosen_fraction, "current", "test_ecotypeB", _type, testcorB)
+        testcorB, testr2B = measure_association(neglogtest[isB], testoffset[isB])
+        print_output(infile, chosen_fraction, "current", "test_ecotypeB", _type, testcorB, testr2B)
         # Now with only env distance
         euclidean = np.sqrt(np.sum((Xpredtest - Xtest)**2, axis=1))
-        env_cor = pearsonr(euclidean, neglogtest)
-        print_output(infile, chosen_fraction, "env_distance", "test", _type, env_cor)
+        env_cor, env_r2 = measure_association(euclidean, neglogtest)
+        print_output(infile, chosen_fraction, "env_distance", "test", _type, env_cor, env_r2)
         # Compare genomic offset with future env
         sampled_df_test = sampled_df.iloc[test_index,]
         pops_with_inds = [k for k in range(K) if np.sum(sampled_df_test.population==k) > 0]
@@ -189,12 +195,12 @@ for chosen_fraction in fractions:
                 -np.log(df_end.currentFitness[df_end.population == k])
             ) if np.sum(df_end.population == k)> 0 else 0.0 for k in pops_with_inds
         ]
-        future_cor = pearsonr(mean_offsets, future_neglog)
-        print_output(infile, chosen_fraction, "future_current_env", "test", _type, future_cor)
+        future_cor, future_r2 = measure_association(mean_offsets, future_neglog)
+        print_output(infile, chosen_fraction, "future_current_env", "test", _type, future_cor, future_r2)
         # Env distance again
         mean_euclidean = [np.mean(euclidean[sampled_df_test.population==k]) for k in pops_with_inds]
-        future_cor_euclidean = pearsonr(mean_euclidean, future_neglog)
-        print_output(infile, chosen_fraction, "future_env_distance", "test", _type, future_cor_euclidean)
+        future_cor_euclidean, future_r2_euclidean = measure_association(mean_euclidean, future_neglog)
+        print_output(infile, chosen_fraction, "future_env_distance", "test", _type, future_cor_euclidean, future_r2_euclidean)
         # Compute genomic offset with past env
         Xtrain_past = sampled_df[["population"]].iloc[train_index].merge(
             df_init.groupby('population')[['pc1', 'pc2', 'pc3']].median(),
@@ -215,7 +221,7 @@ for chosen_fraction in fractions:
             pvalues = np.array( jl.LFMM_Ftest(modelpast, Y, Xtrain_past))
             qvalues = false_discovery_control(pvalues)
             print(f"Number of significant SNPs with FDR: {np.sum(qvalues < 0.05)}", file=sys.stderr, flush=True)
-            candidates = np.array([i+1 for i, val in enumerate(pvalues) if val < 0.05])
+            candidates = np.array([i+1 for i, val in enumerate(qvalues) if val < 0.05])
 
         else:
             candidates = np.array([i+1 for i in range(Y.shape[1])])
@@ -223,29 +229,29 @@ for chosen_fraction in fractions:
         testoffsetpast = genomic_offset(modelpast, Xtest_past, Xpredtest, candidates)
 
         # Train data
-        traincorpast = pearsonr(neglogtrain, trainoffsetpast)
-        print_output(infile, chosen_fraction, "past_env", "train", _type, traincorpast)
+        traincorpast, trainr2past = measure_association(neglogtrain, trainoffsetpast)
+        print_output(infile, chosen_fraction, "past_env", "train", _type, traincorpast, trainr2past)
         # Test data
-        testcorpast = pearsonr(neglogtest, testoffsetpast)
-        print_output(infile, chosen_fraction, "past_env", "test", _type, testcorpast)
+        testcorpast, testr2past = measure_association(neglogtest, testoffsetpast)
+        print_output(infile, chosen_fraction, "past_env", "test", _type, testcorpast, testr2past)
         # Only test data & ecotype 1
-        testcorpastA = pearsonr(neglogtest[isA], testoffsetpast[isA])
-        print_output(infile, chosen_fraction, "past_env", "test_ecotypeA", _type, testcorpastA)
+        testcorpastA, testr2pastA = measure_association(neglogtest[isA], testoffsetpast[isA])
+        print_output(infile, chosen_fraction, "past_env", "test_ecotypeA", _type, testcorpastA, testr2pastA)
         # Only test data & ecotype 2
-        testcorpastB = pearsonr(neglogtest[isB], testoffsetpast[isB])
-        print_output(infile, chosen_fraction, "past_env", "test_ecotypeB", _type, testcorpastB)
+        testcorpastB, testr2pastB = measure_association(neglogtest[isB], testoffsetpast[isB])
+        print_output(infile, chosen_fraction, "past_env", "test_ecotypeB", _type, testcorpastB, testr2pastB)
         # Env distance
         euclidean_past = np.sqrt(np.sum((Xtest_past - Xpredtest)**2, axis=1))
-        env_cor_past = pearsonr(euclidean_past, neglogtest)
-        print_output(infile, chosen_fraction, "past_env_distance", "test", _type, env_cor_past)
+        env_cor_past, env_r2_past = measure_association(euclidean_past, neglogtest)
+        print_output(infile, chosen_fraction, "past_env_distance", "test", _type, env_cor_past, env_r2_past)
         # Compare genomic offset with future env
         mean_offsets_past = [np.mean(testoffsetpast[sampled_df_test.population==k]) for k in pops_with_inds]
-        future_cor_past = pearsonr(mean_offsets_past, future_neglog)
-        print_output(infile, chosen_fraction, "past_env_future", "test", _type, future_cor_past)
+        future_cor_past, future_r2_past = measure_association(mean_offsets_past, future_neglog)
+        print_output(infile, chosen_fraction, "past_env_future", "test", _type, future_cor_past, future_r2_past)
         # Env distance again
         mean_euclidean_past = [np.mean(euclidean_past[sampled_df_test.population==k]) for k in pops_with_inds]
-        future_cor_euclidean_past = pearsonr(mean_euclidean_past, future_neglog)
-        print_output(infile, chosen_fraction, "past_env_distance_future", "test", _type, future_cor_euclidean_past)
+        future_cor_euclidean_past, future_r2_euclidean_past = measure_association(mean_euclidean_past, future_neglog)
+        print_output(infile, chosen_fraction, "past_env_distance_future", "test", _type, future_cor_euclidean_past, future_r2_euclidean_past)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr, flush=True)       
         continue

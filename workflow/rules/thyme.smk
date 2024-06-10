@@ -120,7 +120,7 @@ rule thyme_msprime_past:
         "../envs/msprime_analysis.yaml"
     resources:
         mem_mb=8000,
-        runtime=120,
+        runtime=45,
     threads: 1
     shell:
         "python {input.script} {input.tree} > {output} 2> {log}"
@@ -188,6 +188,22 @@ rule thyme_msprime_past_several:
     output:
         "results/msprime/thyme_past.csv.gz"
     shell:
-        "echo 'infile,fraction,category,dataset,type,statistic,pvalue' > results/msprime/thyme_past.csv && "
+        "echo 'file,fraction,category,dataset,statistic,pvalue,r2adj' > results/msprime/thyme_past.csv && "
         "tail -n +2 -q {input} >> results/msprime/thyme_past.csv && "
         "gzip results/msprime/thyme_past.csv"
+
+rule thyme_generation_time:
+    input:
+        infiles = expand("steps/msprime/thyme_{seed}_n{ticksAfter}.tree", seed=range(500, 520), ticksAfter = [5, 20, 100]),
+        script = "scripts/10_thyme_generation.py",
+    output:
+        "results/msprime/generation_time.npy"
+    log:
+        "logs/msprime_generation_time.log",
+    conda:
+        "../envs/msprime_analysis.yaml"
+    resources:
+        mem_mb=8000,
+        runtime=20,
+    shell:
+        "python {input.script} {input.infiles} {output} > {log} 2> {log}"
