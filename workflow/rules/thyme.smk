@@ -188,7 +188,7 @@ rule thyme_msprime_past_several:
     output:
         "results/msprime/thyme_past.csv.gz"
     shell:
-        "echo 'file,fraction,category,dataset,statistic,pvalue,r2adj' > results/msprime/thyme_past.csv && "
+        "echo 'file,fraction,category,dataset,type,statistic,pvalue,r2adj' > results/msprime/thyme_past.csv && "
         "tail -n +2 -q {input} >> results/msprime/thyme_past.csv && "
         "gzip results/msprime/thyme_past.csv"
 
