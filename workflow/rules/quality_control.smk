@@ -23,7 +23,7 @@ rule quality_control_boots:
         files=expand(
              "steps/slim/{model}_s{seed}_nQTL1s{n}_nQTL2s_{n}.Rds",
              seed=range(100, 110),
-             n=[20, 100],
+             n=[50],
              model=["m3.2"],
         ),
         script="scripts/02_local_adaptation_scenarios_bootstraps.jl",

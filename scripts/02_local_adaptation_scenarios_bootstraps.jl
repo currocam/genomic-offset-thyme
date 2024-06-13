@@ -1,8 +1,9 @@
 using RCall, GenomicOffsets, Statistics, DataFrames, CSV, Dates, Random, MultipleTesting, LinearAlgebra
+import StatsBase: corspearman
 R"library(tidyverse)"
 
 function logging(x...)
-    println(Dates.now(), " ", join(x, " ")...)
+    println(stderr, Dates.now(), " ", join(x, " ")...)
     flush(stderr)
 end
 
@@ -96,7 +97,7 @@ function handle_file(infile)
     # Add if needed
     significances = [0.05]
     methods = [RONA, RDAGO, GeometricGO, GradientForestGO]
-    names = ["GeometricGO"]
+    names = ["RONA", "RDAGO", "GeometricGO", "GradientForestGO"]
     for (method, name) in zip(methods, names)
         logging("Running $name...")
         causal, causalruntime = measure_time(() -> causal_offset(method, Y, X, Xstar, causal_loci) |> vec)
@@ -105,12 +106,12 @@ function handle_file(infile)
             boots, bootruntime = measure_time(() -> bootstrap_with_candidates(
                 method, Y, X, Xstar, 100, candidates_threshold=significance, tw_threshold=1e-5)
             )
-            bootscorrelation = [cor(boot, minuslogfitness) for boot in eachcol(boots)]
+            bootscorrelation = [corspearman(boot, minuslogfitness) for boot in eachcol(boots)]
             push!(df, Dict(
                 :file => infile, :method => name, :FDR => significance,
-                :causal => cor(causal, minuslogfitness),
+                :causal => corspearman(causal, minuslogfitness),
                 :causalruntime => causalruntime,
-                :empirical => cor(empiricaloffset, minuslogfitness),
+                :empirical => corspearman(empiricaloffset, minuslogfitness),
                 :empiricalruntime => empiricalruntime,
                 :minconf95 => quantile(bootscorrelation, 0.025),
                 :maxconf95 => quantile(bootscorrelation, 0.975),
