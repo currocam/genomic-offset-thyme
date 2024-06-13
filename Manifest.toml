@@ -592,11 +592,11 @@ version = "2.7.2+0"
 
 [[deps.GenomicOffsets]]
 deps = ["DecisionTree", "Distributions", "Interpolations", "KernelDensity", "LinearAlgebra", "MultipleTesting", "MultivariateStats", "Random", "RandomMatrices", "Serialization", "Statistics", "StatsBase"]
-git-tree-sha1 = "eb9911f3390fee3935d90b9ee0e3077e980cd805"
+git-tree-sha1 = "f1761ab2a8da6c12736005dec95d1568fa694e2d"
 repo-rev = "main"
 repo-url = "https://github.com/currocam/GenomicOffsets.jl"
 uuid = "496adb70-ccd1-4bf3-8d93-537a078619e1"
-version = "0.1.1"
+version = "0.2.2"
 
 [[deps.Gettext_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "XML2_jll"]

@@ -14,10 +14,11 @@ include: "rules/climate_change.smk"
 
 rule all:
     input:
-        "results/thyme_simulations/gradient_forest.csv",
-        "results/thyme_simulations/climate_change_gradient_forest.csv",
-        "results/local_adaptation_scenarios/quality_control.csv.gz",
-        "results/local_adaptation_scenarios/regression_bootstraps.csv.gz",
         "results/local_adaptation_scenarios/quality_control_bootstrapping.csv.gz",
-        "results/local_adaptation_scenarios/asymmetric_fitness_variance.csv.gz",
-        f"results/allele_freqs/{config['GENOTYPE_BASE_FILE']}.csv",
+        "results/local_adaptation_scenarios/regression_bootstraps.csv.gz",
+        "results/local_adaptation_scenarios/m4_offsets_uncorrelated.csv", 
+        "results/local_adaptation_scenarios/m4_offsets_confounded.csv.gz", 
+        "results/local_adaptation_scenarios/quality_control.csv.gz",
+        "foreign_local.csv.gz",
+        "results/local_adaptation_scenarios/spurious_genomic_offsets.csv.gz",
+        "results/local_adaptation_scenarios/asymmetric_fitness_variance.csv.gz", 

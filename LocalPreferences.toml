@@ -1,0 +1,4 @@
+[RCall]
+Rhome = "/home/currocam/miniconda3/envs/thyme/lib/R"
+libR = "/home/currocam/miniconda3/envs/thyme/lib/R/lib/libR.so"
+
