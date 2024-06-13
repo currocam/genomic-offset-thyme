@@ -1,0 +1,611 @@
+---
+title: "Genetic gap issue"
+date: today
+author: "Curro Campuzano Jiménez"
+format: 
+  html:
+    self-contained-math: true
+    embed-resources: true
+editor: visual
+---
+
+```{r}
+#| label: "setup"
+#| message: false
+#| warning: false
+library(tidyverse)
+library(LEA)
+```
+
+## Data
+
+We have simulated different datasets under the generative model of the geometric genomic offset (aka, adapting simulations from Gain et al. ) and under the thyme scenario (something that mimics more what we think its happening with thyme).
+
+I've processed the data already.
+
+```{r}
+#| label: "data"
+gain.data <- read_rds("slim_adapted_gain.Rds")
+thyme.data <- read_rds("slim_thyme.Rds")
+names(gain.data)
+```
+
+## Source code
+
+We define a `genetic.gap` function with an optional argument for the regularization parameter $\lambda$ for the Ridge estimate of the latent factor linear mixed model (LFMM). It's just a copy paste with minimal modifications from LEA source code.
+
+In the original LEA implementation, the lambda argument is not provided to the `lfmm2` function. Therefore, $\lambda=10^{-5}$ (very little regularization) is fixed for users.
+
+Because this choice was not discussed in the paper (or the documentation), I understood it was a practical choice just to have a unique analytic solution. Something like the [use of regularization in logistic regressions when there's perfect separation and gradient descent never converges](https://stats.stackexchange.com/questions/239928/is-there-any-intuitive-explanation-of-why-logistic-regression-will-not-work-for). However, I'm not that sure anymore.
+
+We also point that, when the `candidate.loci` argument is used, the entire matrix is used to fit the model, but then only the effect sizes corresponding to those loci are used (that is, we fit $\mathbf B \in \mathbb R_{L\times P}$, and then take a subset of the rows $\mathbf B' \in \mathbb R_{L'\times P}$). Here, $L$ is the number of loci and $L'$ is the number of causal loci. I haven't found anything about this choice (which could be weird, as fitting the model to all loci in order to get a subset of the effect sizes is slower than fitting the model for that subset of loci. There must be something I am missing here.
+
+```{r}
+#| label: "lea"
+genetic.gap <-  function(input, 
+                         env,
+                         new.env = NULL, 
+                         pred.env,
+                         K = NULL,
+                         lambda = 1e-5,
+                         scale = FALSE,
+                         candidate.loci = NULL) {
+## Check input response matrix 
+  ## LEA  
+  if (is.character(input)){
+    warning("Loading large input files with 'read.lfmm()' may be slow. See 'data.table::fread()' for fast import.")
+    Y <- read.lfmm(input)
+    lst.unique <- unique(as.numeric(Y))
+    if (9 %in% lst.unique){
+      stop("'input' file contains missing data (9's). Use the 'impute()' function to impute them.")
+    }
+    if (-9 %in% lst.unique){
+      stop("'input' file contains missing data (-9's). Use the 'impute()' function to impute them.")
+    }
+  } else {
+    ## input is an R object       
+    if (is.null(input)){
+      stop("NULL value for argument 'input'.")
+    }
+    Y <- as.matrix(input)
+    Y[Y == 9] <- NA
+    Y[Y == -9] <- NA
+    lst.unique <- unique(as.numeric(Y))
+    if (anyNA(Y)) {
+      stop("The input matrix contains missing values: NA, 9 or -9 not allowed. Use the 'write.geno()' and 'impute()' functions to impute them.")
+    }
+  }
+  
+  
+  ## Check independent/covariate env matrix  
+  ## LEA 
+  if (is.character(env)){
+    X <- read.env(env)
+    if (anyNA(X)){
+      stop("'env' file contains missing data (NA's).")
+    }
+  } else {
+    if (is.null(env)){
+      stop("NULL value for argument 'env'.")
+    }
+    X <- as.matrix(env)
+    if (anyNA(X)) {
+      stop("The environmental matrix contains NA's.")
+    }
+  }
+  
+  
+  ## Check new.env matrix  
+  ## LEA 
+  if (is.null(new.env)){
+    X.new <- X
+  } else {
+  X.new <- as.matrix(new.env)
+  if (anyNA(X.new)) {
+    stop("The new environmental matrix contains NA's.")}
+  }
+  
+  ## Check pred.env matrix  
+  ## LEA 
+  if (is.character(pred.env)){
+    X.pred <- read.env(pred.env)
+    if (anyNA(X.pred)){
+      stop("The 'pred.env' environmental matrix file contains missing data (NA's).")
+    }
+  } else {
+    if (is.null(pred.env)){
+      stop("NULL value for argument 'pred.env'.")
+    }
+    X.pred <- as.matrix(pred.env)
+    if (anyNA(X.pred)) {
+      stop("The predicted environmental matrix contains NA's.")
+    }
+  }
+  
+  
+  
+  d <- ncol(X) #number of environmental variables
+  d.new <-  ncol(X.new) #number of environmental variables
+  
+  if (d.new != d){
+    stop("Number of columns in 'new.env' matrix is not equal to the number of columns in 'env' matrix")    
+  }
+  d.pred <-  ncol(X.pred) #number of environmental variables
+  if (d.pred != d){
+    stop("Number of columns in 'pred.env' matrix is not equal to the number of columns in 'env' matrix")    
+  }
+  
+  n <-  nrow(X) #number of individuals
+  if (nrow(Y) != n){
+    stop("Number of rows in the input matrix not equal to the number of rows in the 'env' matrix")    
+  }
+  
+  if (n < d) {
+    stop("The environmental covariate matrix contains more columns (d) than rows (n).")
+  }
+  
+  
+  n.new <-  nrow(X.new) #number of test points (individuals) in the new environmental matrix
+  n.pred <-  nrow(X.pred) #number of test points (individuals) in the predicted environmental matrix
+  
+  if (n.new != n.pred){
+    stop("Number of rows in 'new.env' matrix is not equal to the number of rows in 'pred.env' matrix")    
+  }
+
+  
+  ## Check K
+  if (is.null(K)){
+    stop("Null value for the number of factor in the LFMM.")  
+  } 
+  
+  ##scale option
+  if (scale == TRUE){
+     m.x <- apply(X, 2, mean)
+     sd.x <- apply(X, 2, sd)
+     if (sum(sd.x == 0) > 0){
+       stop("Error with scale = TRUE: Impossible to standardize a null column (locus).")  
+     } 
+     X <- t(t(X) - m.x) %*% diag(1/sd.x)
+     X.new <- t(t(X.new) - m.x) %*% diag(1/sd.x)
+     X.pred <- t(t(X.pred) - m.x) %*% diag(1/sd.x)
+  }   
+  
+  ## Check candidate.loci
+  if (is.null(candidate.loci)){
+    candidate.loci <- seq(1, ncol(Y))
+  } else {
+    if (sum(!as.numeric(candidate.loci)) > 0 | max(candidate.loci) > ncol(Y)){
+      stop("candidate.loci must be encoded as numeric values not exceeding the total number of columns 
+           in the genotype matrix.")}
+  }  
+  if (length(K) == 1){
+    object <- lfmm2(input = Y, env = X, K = K, lambda = lambda, effect.sizes = TRUE)
+    B <- object@B
+    } else {
+      B <- 0
+      for (k in K){
+        object <- lfmm2(input = Y, env = X, K = k, lambda = lambda, effect.sizes = TRUE)
+        B <- B + object@B
+      }
+      B <- B/length(K)
+    }
+  B = as.matrix(B[candidate.loci,])
+  gg = rowSums(((X.new - X.pred)  %*% t(B))^2)/nrow(B) 
+  rona = rowSums(abs((X.new - X.pred)  %*% t(B)))/nrow(B)
+  eig <- eigen(cov(B))
+  return(list(offset = gg, distance = rona, eigenvalues = eig$values, vectors = eig$vectors))
+}
+
+# RONA from Gain et al. repo
+go_rona <- function(Y, X, X.pred, snps.set){
+  nb_var <- ncol(X)
+  n <- nrow(Y)
+  mod_lm <- lm(as.matrix(Y[,snps.set]) ~ ., data = data.frame(X)) 
+  sm <- summary(mod_lm)
+  B <- sapply(sm, FUN = function(x) x$coeff[1:(nb_var + 1), 1])
+  X <-  cbind(rep(1.0, n), X)
+  X.pred <- cbind(rep(1.0, n), X.pred)
+  Y.fit <- as.matrix(X) %*% as.matrix(B)
+  Y.pred <- as.matrix(X.pred) %*% as.matrix(B)
+  allele_frequency_shift <- abs(Y.fit - Y.pred)
+  return(rowMeans(allele_frequency_shift))
+}
+
+go_rda <- function(Y, X, X.pred, snps.set){
+  nb_var <- ncol(X)
+  n <- nrow(Y)
+  mod_lm <- lm(as.matrix(Y[,snps.set]) ~ ., data = data.frame(X)) 
+  sm <- summary(mod_lm)
+  B <- sapply(sm, FUN = function(x) x$coeff[1:(nb_var + 1), 1])
+  X <-  as.matrix(cbind(rep(1.0, n), X))
+  X.pred <-  as.matrix(cbind(rep(1.0, n), X.pred))
+  pc = prcomp(X %*% B)
+  proj.x = predict(pc, X %*% B)
+  proj.xpred = predict(pc, X.pred %*% B)
+  rda.go = rowSums((proj.x - proj.xpred)[,1:ncol(X)]^2)/ncol(Y[,snps.set])
+  return(rda.go)
+}
+```
+
+## Analysis
+
+We found big differences when computing the the *causal* geometric genomic offset for the entire matrix (when $L$ is large) and using only the subset of causal loci (`Y[, causal_loci]`). Here, by causal I mean the one computed for all adaptative loci and causal environmental covariates. We found this differences when applying the method to the thyme simulated data.
+
+### Gain-adapted simulations
+
+First, fitting the LFMM model for all genotypes, then taking the subset of rows for computing the offset with a low $\lambda = 10^{-5}$ (default).
+
+```{r}
+#| label: "gainall"
+
+pearsons_entire_matrix_low_lambda <- with(gain.data, {
+  # K=3 was decided with screeplot
+  # plot(prcomp(gain.data$genotypes))
+  gap <- genetic.gap(input = genotypes, env = env, new.env = env,
+                     pred.env = pred.env, K = 3, lambda = 1e-5, 
+                     candidate.loci = causal_loci  
+                     )
+  offset <- gap$offset
+  cor(offset, -log(pred.fitness))
+})
+pearsons_entire_matrix_low_lambda
+```
+
+Now, fitting the LFMM model for causal loci *only*.
+
+```{r}
+#| label: "gaincausalonly"
+
+pearsons_causal_loci_low_lambda <- with(gain.data, {
+  # K=2 was decided with screeplot
+  # plot(prcomp(gain.data$genotypes[,gain.data$causal_loci]))
+  gap <- genetic.gap(input = genotypes[,causal_loci], env = env, new.env = env,
+                     pred.env = pred.env, K = 2, lambda = 1e-5, 
+                     )
+  offset <- gap$offset
+  cor(offset, -log(pred.fitness))
+})
+pearsons_causal_loci_low_lambda
+```
+
+I started playing with simulations adapted from Gain et al., and what I found was that there were no big differences using one approach of the other. Likewise, the choice of $\lambda$ (the regularization parameter of the Ridge estimates) seems to affect the Pearson correlation between the offset and the negative logarithm of altered fitness only marginally. And, the default choice $\lambda=10^{-5}$ seems like a good default.
+
+```{r}
+#| label: "gain"
+
+compare_offsets <- function(data, lambda, k.entire, k.causal){
+  pearson_entire <- with(data,{
+    offset <- genetic.gap(genotypes, env, pred.env = pred.env,
+                          K = k.entire, lambda = lambda,
+                          candidate.loci = causal_loci
+                          )$offset
+    cor(offset, -log(pred.fitness))
+  })
+  pearson_subset <- with(data,{
+    offset <- genetic.gap(genotypes[,causal_loci], env, pred.env = pred.env,
+                          K = k.causal, lambda = lambda,
+                          )$offset
+    cor(offset, -log(pred.fitness))
+  })
+  tibble_row(
+    entire_matrix = pearson_entire,
+    causal_subset = pearson_subset,
+    lambda = lambda
+    )
+}
+
+grid_lambda <- 10^seq(-10, 10)
+gain_plot_data <- grid_lambda |>
+  map(\(lambda) compare_offsets(gain.data, lambda, 3, 2)) |> 
+  bind_rows()
+gain_plot_data |>
+  pivot_longer(-lambda) |>
+  ggplot(aes(x = lambda, y = value, colour = name))+
+  geom_point(size = 2, alpha = 0.8)+
+  scale_x_log10() +
+  ylim(c(-1, 1))+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  theme_classic()+
+  xlab("Regularization parameter")+
+  ylab("Pearson's correlation (offset vs -log(w)")+
+  scale_color_manual(name = "Type", values = 2:3)+
+  ggtitle("Gain simulation")
+```
+
+### Thyme simulations
+
+We got different results for thyme simulations. I think simulations differ in three main aspects (two of them violating some of the assumptions of the geometric genomic offset):
+
+1.  Thyme's genetics seem to be controlled by very few loci (then violating the assumption of many loci with a small effect in the polygenic score of the latent trait).
+2.  The latent trait is not continuous, but discrete, with two ecotypes that affect the fitness according to a process with can model as a logistic regression.
+3.  Two environmental variables (PC1 and PC2) are highly correlated. In contrast, in Gain. et al adapted simulations both environmental causal factors were independent.
+
+As expected (because is highly non-linear), we got better results using Gradient Forest. However, RONA seems to do an OK job, so I was surprised to find the causal geometric genomic offset (again, that is, with both causal loci and environmental covariates) did it terrible sometimes. If we do the same analysis as before:
+
+First, fitting the LFMM model for all genotypes, then taking the subset of rows for computing the offset with a low $\lambda = 10^{-5}$ (default). As expected, slightly worse than before (not all assumptions hold), but OK.
+
+```{r}
+#| label: "thymeall"
+
+pearsons_entire_matrix_low_lambda2 <- with(thyme.data, {
+  # K=2 was decided with screeplot
+  # plot(prcomp(thyme.data$genotypes))
+  gap <- genetic.gap(input = genotypes, env = env, new.env = env,
+                     pred.env = pred.env, K = 2, lambda = 1e-5, 
+                     candidate.loci = causal_loci  
+                     )
+  offset <- gap$offset
+  cor(offset, -log(pred.fitness))
+})
+pearsons_entire_matrix_low_lambda2
+```
+
+Now, fitting the LFMM model for causal loci *only*.
+
+```{r}
+#| label: "thymecausalonly"
+
+pearsons_causal_loci_low_lambda2 <- with(thyme.data, {
+  # K=1 was decided with screeplot
+  # plot(prcomp(thyme.data$genotypes[,thyme.data$causal_loci]))
+  gap <- genetic.gap(input = genotypes[,causal_loci], env = env, new.env = env,
+                     pred.env = pred.env, K = 1, lambda = 1e-5, 
+                     )
+  offset <- gap$offset
+  cor(offset, -log(pred.fitness))
+})
+pearsons_causal_loci_low_lambda2
+```
+
+A zero correlation (slightly negative actually) surprised me. It surprised me also because RONA and RDA (linear both of them) did well.
+
+```{r}
+#| label: "thymerona"
+
+with(thyme.data, {
+  # This function just fit a linear model for each causal allele
+  # Then compute L1 norm  between predicted allele frequencies
+  rona <- go_rona(genotypes, env, pred.env, causal_loci)
+  cor(rona, -log(pred.fitness))
+})
+```
+
+```{r}
+#| label: "thymerda"
+
+with(thyme.data, {
+  rda <- go_rda(genotypes, env, pred.env, causal_loci)
+  cor(rda, -log(pred.fitness))
+})
+```
+
+What's wrong with the geometric genomic offset when the model is fitted with only the causal alleles in the Thyme simulations? I found this patter, offset not correlated with -log(fitness) when model is fitted only in the causal loci for thyme simulations was affected by the choice of the regularization parameter.
+
+```{r}
+#| label: "thyme"
+thyme_plot_data <- grid_lambda |>
+  map(\(lambda) compare_offsets(thyme.data, lambda, 2, 1)) |> 
+  bind_rows()
+thyme_plot_data |>
+  pivot_longer(-lambda) |>
+  ggplot(aes(x = lambda, y = value, colour = name))+
+  geom_point(size = 2, alpha = 0.8)+
+  scale_x_log10() +
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  ylim(c(-1, 1))+
+  theme_classic()+
+  xlab("Regularization parameter")+
+  ylab("Pearson's correlation (offset vs -log(w)")+
+  scale_color_manual(name = "Type", values = 2:3)+
+  ggtitle("Thyme simulation")
+```
+
+### Does the number of neutral alleles included when fitting the LFMM matters?
+
+Short answer: it seems to matter only for thyme simulations (again, we are always using the effect sizes for the causal loci, whether we choose to fit the LFMM with more or less alleles).
+
+To check that, we computed genomic offsets for a low and high regularization parameter $\lambda$ with increasing number of neutral alleles included in the LFMM. When zero are included, we are in the `causal_subset` case of above. When all alleles are included, we are in the `entire_matrix` case of above.
+
+#### Gain-adapted simulation
+
+For Gain adapted simulations, we see that the number of neutral alleles included in the LFMM model in addition to the causal one is not relevant when using the default $\lambda=10^{-5}$ (values are not identical, though). For the high regularization, $\lambda=100$ there are some differences but not large.
+
+```{r}
+#| label: "smoothgain"
+
+plot_data_inc_loci_gain <- with(gain.data, {
+  set.seed(1000)
+  non_causal_pool <- setdiff(1:ncol(genotypes), causal_loci)
+  nnon_causal <- length(non_causal_pool)
+  ns <- ceiling(nnon_causal*seq(0, 100)/100)
+  map(ns, \(n){
+    loci <- c(causal_loci, sample(non_causal_pool, n))
+    expand_grid(n = n, k = 1:3, lambda = c(1e-5, 100)) |>
+      rowwise() |>
+      mutate(
+         Pearson = cor(
+           genetic.gap(input = genotypes[,loci], env = env, new.env = env,
+                       pred.env = pred.env, K = k, lambda = lambda, 
+                       candidate.loci = 1:length(causal_loci)
+                       )$offset,
+           -log(pred.fitness)
+           )
+         )
+    }) |>
+    bind_rows()
+})
+
+plot_data_inc_loci_gain |>
+  mutate(lambda = ifelse(lambda == 100, "Lambda = 10^2", "Lambda = 10^-5")) |>
+  ggplot(aes(x = n, y = Pearson, colour = as.factor(k)))+
+  geom_point(shape = 1)+
+  geom_smooth()+
+  ylim(c(-0.1, 1))+
+  theme_classic()+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  xlab("Number of neutral alleles included in the LFMM model")+
+  ylab("Pearson's correlation (offset vs -log(w)")+
+  scale_color_manual(name = "Latent factors (K)", values = c(4, 6, 7))+
+  ggtitle("Gain simulation") +
+  facet_wrap(~lambda)
+```
+
+#### Thyme simulation
+
+If we do the same analysis for the thyme simulations, we see the exact opposite pattern! For small genotype matrices (that is, less than \~1000 loci), the default (and fixed in the LEA implementation) $\lambda=10^{-5}$ completely removes the signal and we get very few loci. For this reason, we got zero correlations when fitting the model with only causal loci.
+
+```{r}
+#| label: "smooththyme"
+
+plot_data_inc_loci_thyme <- with(thyme.data, {
+  set.seed(1000)
+  non_causal_pool <- setdiff(1:ncol(genotypes), causal_loci)
+  nnon_causal <- length(non_causal_pool)
+  ns <- ceiling(nnon_causal*seq(0, 100)/100)
+  map(ns, \(n){
+    loci <- c(causal_loci, sample(non_causal_pool, n))
+    expand_grid(n = n, k = 1:3, lambda = c(1e-5, 100)) |>
+      rowwise() |>
+      mutate(
+         Pearson = cor(
+           genetic.gap(input = genotypes[,loci], env = env, new.env = env,
+                       pred.env = pred.env, K = k, lambda = lambda, 
+                       candidate.loci = 1:length(causal_loci)
+                       )$offset,
+           -log(pred.fitness)
+           )
+         )
+    }) |>
+    bind_rows()
+})
+
+plot_data_inc_loci_thyme |>
+  mutate(lambda = ifelse(lambda == 100, "Lambda = 10^2", "Lambda = 10^-5")) |>
+  ggplot(aes(x = n, y = Pearson, colour = as.factor(k)))+
+  geom_point(shape = 1)+
+  geom_smooth()+
+  ylim(c(-0.1, 1))+
+  theme_classic()+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  xlab("Number of neutral alleles included in the LFMM model")+
+  ylab("Pearson's correlation (offset vs -log(w)")+
+  scale_color_manual(name = "Latent factors (K)", values = c(4, 6, 7))+
+  ggtitle("Thyme simulation") +
+  facet_wrap(~lambda)
+```
+
+In fact, I observe the same pattern (except for the fact that now all three lines for $K=1, 2, 3$ are together) when adding *random* alleles with no differences in allele frequency within the "metapopulation". This suggest me that there's something that goes wrong when doing the rank approximation if very few loci.
+
+```{r}
+#| label: "randomloci"
+plot_data_inc_loci_thyme_random <- with(thyme.data, {
+  set.seed(1000)
+  nnon_causal <- ncol(genotypes)-length(causal_loci)
+  ns <- ceiling(nnon_causal*seq(0, 100)/100)
+  map(ns, \(n){
+    freqs <- runif(n, 0, 1)
+    random_alleles <- sapply(freqs, \(p) rbinom(nrow(env), 2, p))
+    Ytemp <- genotypes[,causal_loci]
+    if (n>0) {
+      Ytemp <- cbind(genotypes[,causal_loci], random_alleles)
+    }
+    expand_grid(n = n, k = 1:3, lambda = c(1e-5, 100)) |>
+      rowwise() |>
+      mutate(
+         Pearson = cor(
+           genetic.gap(input = Ytemp, env = env, new.env = env,
+                       pred.env = pred.env, K = k, lambda = lambda, 
+                       candidate.loci = 1:length(causal_loci)
+                       )$offset,
+           -log(pred.fitness)
+           )
+         )
+    }) |>
+    bind_rows()
+})
+
+plot_data_inc_loci_thyme_random |>
+  mutate(lambda = ifelse(lambda == 100, "Lambda = 10^2", "Lambda = 10^-5")) |>
+  ggplot(aes(x = n, y = Pearson, colour = as.factor(k)))+
+  geom_point(shape = 1)+
+  geom_smooth()+
+  ylim(c(-0.1, 1))+
+  theme_classic()+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  xlab("Number of random alleles included in the LFMM model")+
+  ylab("Pearson's correlation (offset vs -log(w)")+
+  scale_color_manual(name = "Latent factors (K)", values = c(4, 6, 7))+
+  ggtitle("Thyme simulation") +
+  facet_wrap(~lambda)
+```
+
+```{r}
+source("plots/theme.R")
+
+adj.r2 <- function(x, y){
+  model <- lm(y ~ x)
+  summary(model)$adj.r.squared
+}
+
+plot_data_inc_loci_thyme_random <- with(thyme.data, {
+  set.seed(1000)
+  nnon_causal <- ncol(genotypes)-length(causal_loci)
+  ns <- ceiling(nnon_causal*seq(0, 100)/100)
+  map(ns, \(n){
+    freqs <- runif(n, 0, 1)
+    random_alleles <- sapply(freqs, \(p) rbinom(nrow(env), 2, p))
+    Ytemp <- genotypes[,causal_loci]
+    if (n>0) {
+      Ytemp <- cbind(genotypes[,causal_loci], random_alleles)
+    }
+    expand_grid(n = n, k = 1:3, lambda = c(1e-5, 100)) |>
+      rowwise() |>
+      mutate(
+         adj.r2 = adj.r2(
+           genetic.gap(input = Ytemp, env = env, new.env = env,
+                       pred.env = pred.env, K = k, lambda = lambda, 
+                       candidate.loci = 1:length(causal_loci)
+                       )$offset,
+           -log(pred.fitness)
+           )
+         )
+    }) |>
+    bind_rows()
+})
+library(ggsci)
+plot_data_inc_loci_thyme_random |>
+  mutate(lambda = ifelse(lambda == 100, "λ=1e2", "λ=1e-5")) |>
+  ggplot(aes(x = n, y = adj.r2, colour = as.factor(k)))+
+  geom_smooth()+
+  geom_point(shape = 1)+
+  theme_classic()+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  xlab("Number of random alleles added to the genotype matrix")+
+  ylab("Adjusted R squared")+
+  scale_colour_cosmic(name = "Latent factors (K)")+
+  facet_wrap(~lambda)
+ggsave(
+  "plots/11-numerical_issues/plot.pdf",
+  last_plot(), device = cairo_pdf,
+  width = fig.witdh, height = fig.height, units = "mm", dpi = "retina"
+)
+
+
+```
+
+## Questions
+
+The main issue I see is that, although the fact $\lambda$ is fixed in the LEA implementation suggests that it is not an hyperparameter to tune, but an implementation detail, I see that it affects our results.
+
+Then, the natural question is how to tune that hyperparameter. It would be straightforward to tune if we had access to a viability proxy by doing cross-validation. However, it is not obvious to me how to do cross-validation for the LFMM model with the mean square error of genotype predictions (as you have fitted $U\in \mathbb R^{n\times K}$ as part of the model, that is, depend on the training sample size $n$).
+
+There's one [function](https://bcm-uga.github.io/lfmm/reference/lfmm_ridge_CV.html) at the `lfmm` R package for doing exactly that (CV validation with the Ridge estimates) which I don't fully understand. I don't think they explain this in the LFMM2 paper either. According to the signature, they expect as parameters the number of folds along rows (individuals) and columns (alleles). That confused me even more.
+
+Especially, because although the function is documented in the web, is not available in the CRAN available version of the package because it was [removed from the package in version 1.1](https://github.com/cran/lfmm/commit/60bb8ad72cb07cc729ced050a606dd48712c4e5f) (as far as I know, latest available). Does it mean it should not be used?
+
+## Session info
+
+```{r}
+#| label: "session"
+sessionInfo()
+```
