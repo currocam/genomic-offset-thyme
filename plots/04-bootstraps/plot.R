@@ -32,7 +32,7 @@ p1 <- data |>
 p1
 
 ggsave(
-  "plots/07-bootstraps/error_bars.pdf",
+  "plots/04-bootstraps/error_bars.pdf",
   p1, device = cairo_pdf,
   width = fig.witdh, height = fig.height, units = "mm", dpi = "retina"
 )
@@ -46,7 +46,7 @@ data |>
   theme_classic()
 
 ggsave(
-  "plots/07-bootstraps/time.pdf",
+  "plots/04-bootstraps/time.pdf",
   last_plot(), device = cairo_pdf,
   width = fig.witdh, height = fig.height, units = "mm", dpi = "retina"
 )
@@ -58,7 +58,7 @@ data <- read_csv(infile) |>
 # First, we do kmeans with x and y to create populations
 set.seed(123)
 prepare_data <- function(data){
-  km.res <- kmeans(data[, c("x", "y")], 20, nstart = 25)
+  km.res <- kmeans(data[, c("x", "y")], 11^2, nstart = 25)
   data |>
     mutate(
       cluster = km.res$cluster,
@@ -69,11 +69,7 @@ prepare_data <- function(data){
         method == "RONA" ~ "RONA",
       ) 
     ) |>
-    mutate(
-      across(c(
-        starts_with("boot"), empirical, causal,
-        negative_log_fitness, ), rank)
-    ) |>
+    mutate(across(starts_with("boot"), rank)) |>
     group_by(cluster, method) |>
     summarise(
       across(c(
@@ -99,6 +95,8 @@ prepare_data <- function(data){
 datplot <- data |>
   group_split(method) |>
   map_dfr(prepare_data)
+
+
 
 p2 <- datplot|>
     ggplot() +
@@ -127,7 +125,7 @@ library(patchwork)
 p2 + p3 + plot_layout(guides='collect') &
   theme_classic() & theme(legend.position = "none")
 ggsave(
-  "plots/07-bootstraps/rank_custom.pdf",
+  "plots/04-bootstraps/rank_custom.pdf",
   last_plot(), device = cairo_pdf,
   width = fig.witdh, height = fig.height, units = "mm", dpi = "retina"
 )
