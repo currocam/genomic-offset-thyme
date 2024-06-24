@@ -116,7 +116,7 @@ $$
 
 ## Different local and non-local adaptation scenarios
 
-![](img/geometric_go2.svg){fig-align="center" width="100%"}
+![](img/geometric_go2.png){fig-align="center" width="100%"}
 
 ## No differences between methods if using the same set of candidates
 
@@ -163,8 +163,12 @@ $$
 
 ## Take home message
 
--   Genomic offsets need to be supported by external evidence of populations being locally optimal
+- Genomic offsets are an effective approach if you have external evidence of populations being locally optimal
+
+- Identifying putatively adaptive loci using hypothesis-testing improves performance, but not be too strict
+
 -   Measuring the uncertainty of your estimates using bootstrapped ranked genomic offsets is a promising strategy
+
 -   Simulate specific data to show the method could work in theory, or if it will fail (non-continuous phenotypes, migration ...)
 
 # Thanks! {.r-fit-text background-color="#e64173"}
