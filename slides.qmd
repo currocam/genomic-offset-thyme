@@ -132,6 +132,13 @@ $$
 
 ![Weak and strong asymmetry refer to the difference in relative importance of the two adaptive phenotypes.](img/fp_versus_fn.svg){#fig-fpfn fig-align="center" width="100%"}
 
+## Hypothesis-testing prevents spurious inference when phenotype has no genetic basis
+
+![](img/random.svg){#fig-random fig-align="center" width="100%"}
+
+Lind and collaborators found that randomly selected were as good as putatively adaptive loci.
+
+
 ## What about bootstrapping to measure uncertainty?
 
 ![](img/boots.png){#fig-boots fig-align="center" width="100%"}
@@ -207,14 +214,6 @@ Different methods rely on different genotype $\times$ environment association mo
 ## Different local and non-local adaptation scenarios
 
 ![](img/criteria.svg){#fig-criteria fig-align="center" width="100%"}
-
-## Hypothesis-testing prevents spurious inference when phenotype has no genetic basis
-
-![](img/random.svg){#fig-random fig-align="center" width="100%"}
-
-Lind and collaborators found that randomly selected were as good as putatively adaptive loci.
-
-
 ## Selecting environmental variables
 
 -   Model building and variable selection?
