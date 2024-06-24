@@ -1,4 +1,4 @@
-## Prediction of Maladaptation from Ecological and Genomic Data Using Genomic Offsets
+## Prediction of maladaptation from ecological and genomic data using genomic offsets
 
 This repository contains the source code associated with my Master's Thesis in Bioinformatics, titled "Prediction of Maladaptation from Ecological and Genomic Data Using Genomic Offsets". I explored methodological aspects of the framework using simulated data. 
 
